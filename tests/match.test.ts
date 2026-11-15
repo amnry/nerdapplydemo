@@ -50,6 +50,25 @@ describe("golden cases", () => {
     expect(e.reasons.join(" ")).toMatch(/Grade 9 not in allowed 6, 7, 8/);
   });
 
+  it("1c. entering basis compares with grade 9; current basis compares with grade 8, whatever the dates", () => {
+    const enteringOk = opp({ grade_basis: "entering", grades_allowed: [8, 9] });
+    const enteringNo = opp({ grade_basis: "entering", grades_allowed: [6, 7, 8], starts_on: "2026-12-01" });
+    const currentOk = opp({ grade_basis: "current", grades_allowed: [8], cycle_label: "summer-2027", starts_on: "2027-07-01" });
+    const currentNo = opp({ grade_basis: "current", grades_allowed: [9] });
+    const ids = guide(threeVillage, [enteringOk, enteringNo, currentOk, currentNo]).map((i) => i.opp.id).sort();
+    expect(ids).toEqual([enteringOk.id, currentOk.id].sort());
+  });
+
+  it("1d. rows with no grade limit: school and district scope are eligible, other scopes need confirming", () => {
+    const school = opp({ scope_type: "school", scope_value: "gelinas", grades_allowed: null });
+    const district = opp({ scope_type: "district", scope_value: "three-village-csd", grades_allowed: null });
+    const county = opp({ scope_type: "county", scope_value: "Suffolk", grades_allowed: null });
+    const byId = new Map(guide(threeVillage, [school, district, county]).map((i) => [i.opp.id, i]));
+    expect(byId.get(school.id)?.eligibility).toBe("eligible");
+    expect(byId.get(district.id)?.eligibility).toBe("eligible");
+    expect(byId.get(county.id)?.bucket).toBe("Confirm first");
+  });
+
   it("2. district-restricted program: present for a listed district, absent for the other school", () => {
     const row = opp({ scope_type: "district", scope_value: "three-village-csd", requires: { districts: ["three-village-csd"] } });
     expect(guide(threeVillage, [row]).map((i) => i.opp.id)).toEqual([row.id]);

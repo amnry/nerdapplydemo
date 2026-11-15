@@ -69,18 +69,14 @@ function Item({ i, school }: { i: GuideItem; school: School }) {
 }
 
 // One card per club-owning school: the club rows from one source collapse into a single list of names.
-function ClubsCard({ owner, items }: { owner: string; items: GuideItem[] }) {
+function ClubsCard({ owner, items, school }: { owner: string; items: GuideItem[]; school: School }) {
   const newest = items.map((i) => i.opp.last_verified_at).filter(Boolean).sort().pop();
+  // On a middle-school guide, a high school's clubs are next year's, not this year's.
+  const nextYear = school.kind === "middle_school" && /high school/i.test(owner);
   return (
     <li className="item">
-      <h3>
-        Clubs at {owner} ({items.length})
-      </h3>
-      <ul>
-        {items.map((i) => (
-          <li key={i.opp.id}>{i.opp.title}</li>
-        ))}
-      </ul>
+      <h3>{nextYear ? `Next year at ${owner}` : `Clubs at ${owner} (${items.length})`}</h3>
+      <p>{items.map((i) => i.opp.title).join(", ")}</p>
       <p>
         Official page: {shortUrl(items[0].opp.source_url)} | Verified: {newest?.slice(0, 10) ?? NP}
       </p>
@@ -132,28 +128,27 @@ function Next12Months({ items }: { items: GuideItem[] }) {
     { label: "Summer 2027, rising 9th grader", from: "2027-06-01", to: "2027-08-31" },
     { label: "First semester of high school", from: "2027-09-01", to: "2028-01-31" },
   ];
+  const lines = windows.map((w) => ({ ...w, inWin: items.filter((i) => i.date && i.date >= w.from && i.date <= w.to) }));
+  if (lines.every((l) => l.inWin.length === 0)) return null; // nothing dated to show, so no strip
   return (
     <section className="strip">
       <h2>Your next 12 months</h2>
-      {windows.map((w) => {
-        const inWin = items.filter((i) => i.date && i.date >= w.from && i.date <= w.to);
-        return (
-          <div key={w.label}>
-            <strong>{w.label}</strong>
-            {inWin.length === 0 ? (
-              <span>: no dated items</span>
-            ) : (
-              <ul>
-                {inWin.map((i) => (
-                  <li key={i.opp.id}>
-                    {i.date}: {i.opp.title}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        );
-      })}
+      {lines.map((l) => (
+        <div key={l.label}>
+          <strong>{l.label}</strong>
+          {l.inWin.length === 0 ? (
+            <span>: no dated items</span>
+          ) : (
+            <ul>
+              {l.inWin.map((i) => (
+                <li key={i.opp.id}>
+                  {i.date}: {i.opp.title}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ))}
     </section>
   );
 }
@@ -247,7 +242,7 @@ export default async function GuidePage({
                 e.kind === "item" ? (
                   <Item key={e.i.opp.id} i={e.i} school={school} />
                 ) : (
-                  <ClubsCard key={`clubs-${e.items[0].opp.id}`} owner={e.owner} items={e.items} />
+                  <ClubsCard key={`clubs-${e.items[0].opp.id}`} owner={e.owner} items={e.items} school={school} />
                 ),
               )}
             </ul>

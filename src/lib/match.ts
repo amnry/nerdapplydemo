@@ -50,11 +50,6 @@ export function inScope(school: School, opp: Opportunity): boolean {
   }
 }
 
-// A summer or fall 2027 program is for a student who will be entering grade 9, not one who is in grade 8 now.
-function isRising(opp: Opportunity): boolean {
-  return (opp.starts_on != null && opp.starts_on >= "2027-06-01") || opp.cycle_label === "summer-2027" || opp.cycle_label === "fall-2027";
-}
-
 interface Eligible {
   state: Eligibility;
   reasons: string[];
@@ -89,12 +84,13 @@ export function eligibility(school: School, opp: Opportunity): Eligible {
   const conditions = programConditions(req);
 
   if (school.kind === "middle_school") {
-    const grade = isRising(opp) ? 9 : 8;
-    const label = grade === 9 ? "entering grade 9 (program starts summer 2027 or later)" : "current grade 8";
+    // A current 8th grader is entering grade 9 and currently in grade 8; the row's grade_basis says which grade its limits mean.
+    const grade = opp.grade_basis === "entering" ? 9 : 8;
+    const label = grade === 9 ? "entering grade 9" : "current grade 8";
     if (!opp.grades_allowed || opp.grades_allowed.length === 0) {
       outcomes.push(
-        opp.scope_type === "school"
-          ? { state: "eligible", reason: "School-scope row with no grade limit; offered to this school's students" }
+        opp.scope_type === "school" || opp.scope_type === "district"
+          ? { state: "eligible", reason: `${opp.scope_type === "school" ? "School" : "District"}-scope row with no grade limit; offered to this ${opp.scope_type}'s students` }
           : { state: "unknown", reason: "Grades not published" },
       );
     } else if (opp.grade_basis === "age" || opp.grade_basis === "unknown") {
