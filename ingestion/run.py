@@ -9,7 +9,7 @@ import yaml
 from .extract import apply_pre_admission, extract
 from .fetch import check_url, fetch_source, new_client, robots_ok
 from .models import ROOT, load_env
-from .publish import SupabaseStore, apply_overrides, build_row, load_overrides, publish_rows
+from .publish import SupabaseStore, apply_overrides, build_row, load_overrides, publish_rows, seed_schools
 from .report import run_row, write_report
 from .verify import verify
 
@@ -20,12 +20,20 @@ def run(argv=None) -> dict:
     ap = argparse.ArgumentParser(prog="python -m ingestion.run")
     ap.add_argument("--publish", action="store_true", help="write to Supabase (default is a dry run)")
     ap.add_argument("--dry-run", action="store_true", help="explicit dry run (the default)")
+    ap.add_argument("--seed-schools", action="store_true", help="upsert ingestion/schools.yaml into the database, then exit")
     ap.add_argument("--source", help="only this source id")
+    ap.add_argument("--school", action="append", help="only sources for this school slug (repeatable)")
     ap.add_argument("--max-pages", type=int, default=15, help="cap on pages fetched this run")
     args = ap.parse_args(argv)
     load_env()
+    if args.seed_schools:
+        schools = yaml.safe_load((ROOT / "ingestion" / "schools.yaml").read_text())["schools"]
+        result = seed_schools(SupabaseStore(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"]), schools)
+        print(f"schools: {result['seeded']} upserted")
+        return result
     all_sources = yaml.safe_load((ROOT / "ingestion" / "sources.yaml").read_text())["sources"]
-    sources = [s for s in all_sources if not args.source or s["id"] == args.source]
+    sources = [s for s in all_sources if (not args.source or s["id"] == args.source)
+               and (not args.school or s["school"] in args.school)]
     stats = {"started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
              "mode": "publish" if args.publish else "dry-run", "sources_attempted": 0, "sources_ok": 0,
              "extracted": 0, "verified": 0, "needs_review": 0, "rejected": 0, "manual": 0, "tokens_in": 0,
@@ -91,7 +99,9 @@ def run(argv=None) -> dict:
             text, final_url = pages.get(m["source"], (None, None))
             handle({k: v for k, v in m.items() if k not in MANUAL_META}, by_id[m["source"]], text, final_url, client,
                    "manual", f"manual entry by {m['entered_by']} on {m['entered_on']}")
+    before = set(rows)
     rows, stats["unmatched_overrides"] = apply_overrides(rows, load_overrides())
+    stats["rejected_by_override"] = sorted(before - set(rows))
     if args.publish:
         store = SupabaseStore(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
         store.upsert("sources", [{"slug": s["id"], **{k: s[k] for k in ("url", "owner", "stage", "scope_type", "scope_value", "lat", "lon")}}
@@ -106,7 +116,7 @@ def run(argv=None) -> dict:
     print(f"{stats['mode']}: {stats['sources_ok']}/{stats['sources_attempted']} sources fetched, "
           f"{stats['extracted']} extracted, {stats['verified']} verified, {stats['needs_review']} needs_review, "
           f"{stats['rejected']} rejected, {len(stats['dropped_pre_admission'])} dropped (pre_admission), "
-          f"{stats['manual']} manual. Report: {path}")
+          f"{stats['manual']} manual. Rows written: {stats.get('publish', 'none (dry run)')}. Report: {path}")
     return stats
 
 

@@ -189,3 +189,18 @@ def test_manual_record_without_page_text_skips_only_the_page_match():
     v = verify(GOOD, None, SRC, today=TODAY, url_ok=OK)
     assert v.state == "verified" and ("Q1", "quote_unchecked:no_page_text") in codes(v, "note")
     assert verify({**GOOD, "title": ""}, None, SRC, today=TODAY).state == "rejected"
+
+
+def test_date_text_without_month_or_digit_is_nulled():
+    page = PAGE + "\nStudents apply by posted deadlines."
+    r = deepcopy(GOOD)
+    r.update(deadline=None, date_text="posted deadlines")
+    r["evidence"] = [e for e in r["evidence"] if e["field"] != "deadline"]
+    v = run(r, page=page)
+    assert v.record["date_text"] is None and v.record["date_confidence"] == "not_published"
+    assert ("Q3", "date_text_not_a_date:nulled") in codes(v, "note")
+
+
+def test_date_text_with_month_name_is_kept():
+    v = run({**GOOD, "date_text": "March 3"})
+    assert v.record["date_text"] == "March 3"

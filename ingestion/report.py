@@ -23,6 +23,7 @@ def write_report(stats: dict, path=ROOT / "docs" / "QA_REPORT.md") -> str:
           f"| Sources fetched OK | {_pct(stats['sources_ok'], stats['sources_attempted'])} |",
           f"| Records extracted | {stats['extracted']} |", f"| Verified | {stats['verified']} |",
           f"| Needs review | {stats['needs_review']} |", f"| Rejected | {stats['rejected']} |",
+          f"| Rows written to database | {stats.get('publish', 'none (dry run)')} |",
           f"| Dropped (pre_admission: about applying for admission) | {len(stats.get('dropped_pre_admission', []))} |",
           f"| Manual records (quotes not machine-checked if page blocked) | {stats.get('manual', 0)} |",
           f"| Tokens in / out | {stats['tokens_in']} / {stats['tokens_out']} |",
@@ -37,6 +38,8 @@ def write_report(stats: dict, path=ROOT / "docs" / "QA_REPORT.md") -> str:
     L += [f"- {s['id']}: {s['note']}" for s in stats["per_source"] if s["result"] == "skipped"] or ["- none"]
     L += ["", "## Dropped by pre_admission rule", ""]
     L += [f"- {d['source']}: {d['title']}" for d in stats.get("dropped_pre_admission", [])] or ["- none"]
+    L += ["", "## Rejected by override (human decision)", ""]
+    L += [f"- {k}" for k in stats.get("rejected_by_override", [])] or ["- none"]
     L += ["", "## Overrides with no matching record", ""]
     L += [f"- {k}" for k in stats.get("unmatched_overrides", [])] or ["- none"]
     path.parent.mkdir(parents=True, exist_ok=True)

@@ -57,3 +57,13 @@ Running log of choices the plan left open. Each entry: decision, then reason.
 - **Migration `002_date_text.sql` is written but NOT applied.** The pipeline now writes `opportunities.date_text`; apply it before the first `--publish`.
 - **Schools stay unseeded** until the presenter supplies coordinates and confirms each row (`verified_at` null).
 - **Live LLM spend so far:** $0.2040 (first run) + $0.2593 (second) = $0.4633.
+
+## Gate 2: seeding and first publish (Nov 15)
+
+- **Migration 002 applied** (`opportunities.date_text`). **Four schools seeded** from `schools.yaml` with presenter-supplied coordinates; `verified_at` is 2026-11-15 (presenter confirmed the Gelinas name and address from the school's own site; the other three came from fetched official contact pages). `--seed-schools` refuses any row without lat/lon or `verified_at`.
+- **`date_text` rule:** a `date_text` with no month name and no digit (for example "posted deadlines") is nulled with a Q3 note.
+- **Override:** `Secure Your Seat at SBU` is rejected as a duplicate of the Tuition Deposit record (`stony-brook-university|secure-your-seat-at-sbu|fall-2026`). It is listed in the QA report under "Rejected by override".
+- **Idempotency bug prevented:** the database returns numeric `150` where the pipeline holds `150.0`; rows are now compared with numbers as floats, with a test.
+- **Six URECA needs_review records left alone** for the presenter's audit; they are stored with `verification_state=needs_review` and are not shown in guides.
+- **Scope mistake, run 1:** `--publish` with no `--school` runs every source in `sources.yaml`. Run 1 therefore also published 17 Hofstra rows (16 verified, 1 needs_review) from sources added by another session, costing $0.1122. They were not requested and were not deleted. Run 2 was scoped with `--school stony-brook-university`.
+- **Publish results:** run 1 wrote 39 rows (22 Stony Brook, 17 Hofstra); run 2 (Stony Brook) wrote 0: all 22 rows keep run 1's `last_verified_at`. Total live LLM spend: $0.5755.

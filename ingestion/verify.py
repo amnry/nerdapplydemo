@@ -10,6 +10,7 @@ from .models import DATE_FIELDS, Reason, Verdict
 
 _MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september",
            "october", "november", "december"]
+_MONTH_NAME = re.compile(r"\b(Jan(uary)?|Feb(ruary)?|Mar(ch)?|Apr(il)?|May|Jun(e)?|Jul(y)?|Aug(ust)?|Sep(t(ember)?)?|Oct(ober)?|Nov(ember)?|Dec(ember)?)\b")
 _GRADE_WORD = {6: "sixth", 7: "seventh", 8: "eighth", 9: "ninth", 10: "tenth", 11: "eleventh", 12: "twelfth"}
 
 
@@ -78,6 +79,10 @@ def verify(rec: dict, text: str, source: dict, today: date = None, url_ok=None) 
             add("Q1", "date_text_not_found", "reject")
     if any(r.level == "reject" for r in reasons):
         return Verdict("rejected", reasons, rec)
+
+    if date_text and not (_MONTH_NAME.search(date_text) or re.search(r"\d", date_text)):  # "posted deadlines" is not a date
+        add("Q3", "date_text_not_a_date:nulled", "note")
+        rec["date_text"], date_text = None, ""
 
     def field_quote(f):
         return " ".join(quotes.get(f, []))

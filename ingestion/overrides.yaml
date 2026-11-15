@@ -3,4 +3,9 @@
 # Example (do not uncomment without a real key):
 #   - {key: "stony-brook-university|admitted-seawolf-day|ay-2026-27", action: edit, reviewer: <name>,
 #      date: 2026-11-15, note: "date confirmed on page", fields: {deadline: "2027-04-10"}}
-overrides: []
+overrides:
+  - key: "stony-brook-university|secure-your-seat-at-sbu|fall-2026"
+    action: reject
+    reviewer: presenter
+    date: 2026-11-15
+    note: "Duplicate of the Tuition Deposit record: same deposit, offered in person at Admitted Seawolf Day."

@@ -71,7 +71,12 @@ def apply_overrides(rows: dict, overrides: list) -> tuple:
 
 
 def _canon(row: dict) -> str:
-    return json.dumps({c: row.get(c) for c in CONTENT_COLS}, sort_keys=True, default=str)
+    """Stable text form of a row's content. Numbers are compared as floats, because the database returns 150 for 150.0."""
+    vals = {c: row.get(c) for c in CONTENT_COLS}
+    for c in ("cost_usd", "venue_lat", "venue_lon"):
+        if vals[c] is not None:
+            vals[c] = float(vals[c])
+    return json.dumps(vals, sort_keys=True, default=str)
 
 
 def publish_rows(store, rows: list) -> dict:
@@ -82,6 +87,15 @@ def publish_rows(store, rows: list) -> dict:
     now = datetime.now(timezone.utc).isoformat()
     store.write([{**r, "last_verified_at": now} for r in ins + upd])
     return {"inserted": len(ins), "updated": len(upd), "unchanged": len(rows) - len(ins) - len(upd)}
+
+
+def seed_schools(store, schools: list) -> dict:
+    """Upsert the demo schools by slug. Refuses a row with no coordinates or no verified_at, so nothing unconfirmed is seeded."""
+    bad = [s["slug"] for s in schools if s.get("lat") is None or s.get("lon") is None or not s.get("verified_at")]
+    if bad:
+        raise ValueError(f"schools missing lat/lon or verified_at: {bad}")
+    store.upsert("schools", schools, "slug")
+    return {"seeded": len(schools)}
 
 
 class SupabaseStore:
