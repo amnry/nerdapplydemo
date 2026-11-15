@@ -125,3 +125,9 @@ def test_run_row_carries_school_slug_and_cost():
 def test_refresh_sources_is_refused_without_school_or_all():
     with pytest.raises(SystemExit):
         run(["--refresh-sources"])
+
+
+def test_published_run_rows_are_marked_publish():
+    from ingestion.report import run_row
+    stats = {k: 0 for k in ("sources_attempted", "sources_ok", "extracted", "verified", "needs_review", "rejected", "tokens_in", "tokens_out")}
+    assert run_row({**stats, "started_at": "t", "school_slug": "all"}, "t2")["mode"] == "publish"

@@ -1,6 +1,6 @@
 # QA Report
 
-Generated: 2026-11-15T06:37:35+00:00  |  Mode: publish
+Generated: 2026-11-15T06:48:43+00:00  |  Mode: publish
 
 ## Run numbers
 
@@ -12,7 +12,7 @@ Generated: 2026-11-15T06:37:35+00:00  |  Mode: publish
 | Verified | 30 |
 | Needs review | 23 |
 | Rejected | 2 |
-| Rows written to database | {'inserted': 0, 'updated': 2, 'unchanged': 51} |
+| Rows written to database | {'inserted': 0, 'updated': 0, 'unchanged': 53} |
 | Dropped (pre_admission: about applying for admission) | 0 |
 | Manual records (quotes not machine-checked if page blocked) | 0 |
 | Tokens in / out | 0 / 0 |

@@ -124,3 +124,15 @@ overrides:
     date: 2026-11-15
     note: "Grade quote was cut at a line break. Page: 'entering grade 8 or Fun With DNA alumni entering grade 7'. Grades stay 8; the grade 7 path is alumni only."
     fields: {"grades_allowed": [8], "requires": {"note": "Also open to Fun With DNA alumni entering grade 7."}, "evidence": [{"field": "title", "quote": "World of Enzymes"}, {"field": "grades_allowed", "quote": "entering grade 8 or Fun With DNA alumni entering grade 7"}, {"field": "cycle_label", "quote": "SUMMER 2026 Calendar for Dolan DNA Learning Center, Cold Spring Harbor"}, {"field": "cost_usd", "quote": "$600 | n/a"}, {"field": "action_type", "quote": "Complete camp applications to ENROLL all family members under that account."}]}
+  - key: "cold-spring-harbor-laboratory-dna-learning-center|green-genes|summer-2026"
+    action: edit
+    reviewer: presenter
+    date: 2026-11-15
+    note: "Grade quote was cut at a line break. Page: 'entering grade 9 or World of Enzymes alumni entering grade 8'. Grades stay 9; the earlier-grade path is alumni only."
+    fields: {"grades_allowed": [9], "requires": {"note": "Also open to World of Enzymes alumni entering grade 8."}, "evidence": [{"field": "title", "quote": "Green Genes"}, {"field": "grades_allowed", "quote": "entering grade 9 or World of Enzymes alumni entering grade 8"}, {"field": "cycle_label", "quote": "SUMMER 2026 Calendar for Dolan DNA Learning Center, Cold Spring Harbor"}, {"field": "cost_usd", "quote": "$600 | n/a"}, {"field": "action_type", "quote": "Complete camp applications to ENROLL all family members under that account."}]}
+  - key: "cold-spring-harbor-laboratory-dna-learning-center|forensic-crime-lab|summer-2026"
+    action: edit
+    reviewer: presenter
+    date: 2026-11-15
+    note: "Grade quote was cut at a line break. Page: 'entering grade 10 or Forensic Detectives alumni entering grade 9'. Grades stay 10; the earlier-grade path is alumni only."
+    fields: {"grades_allowed": [10], "requires": {"note": "Also open to Forensic Detectives alumni entering grade 9."}, "evidence": [{"field": "title", "quote": "Forensic Crime Lab"}, {"field": "grades_allowed", "quote": "entering grade 10 or Forensic Detectives alumni entering grade 9"}, {"field": "cycle_label", "quote": "SUMMER 2026 Calendar for Dolan DNA Learning Center, Cold Spring Harbor"}, {"field": "cost_usd", "quote": "$700 | n/a"}, {"field": "action_type", "quote": "Complete camp applications to ENROLL all family members under that account."}]}
