@@ -84,4 +84,4 @@ Running log of choices the plan left open. Each entry: decision, then reason.
 - **Domain default fix:** for `*.k12.ny.us` hosts the allowed domain collapsed to `ny.us`; it is now the district domain (`gardencity.k12.ny.us`). Test added.
 - **Page cap default is 40.** Shared sources (the two DNA Learning Center pages) list both middle schools in `school: [...]`.
 - **Gate 3 sources added (dry runs only, nothing published):** Garden City: library Tweens N Teens page, 6 district/GCMS pages found by following links, 3 Adelphi and 3 Hofstra youth pages. Gelinas: Emma Clark teen site, 3 Stony Brook pre-college pages, the SCCC K-12 page, the Brookhaven education page. Skipped from the link crawl: registration and pre-K pages, and Drive/Canva/PDF files (the GCHS course catalog is a Drive file).
-- **Dry-run LLM spend:** Garden City $0.3550 (63,230 in / 22,848 out), Gelinas about $0.2510 (24,322 in / 10,284 out). Total live spend about $0.86.
+- **Dry-run LLM spend:** Garden City $0.3550 (63,230 in / 22,848 out), Gelinas $0.1514 (24,322 in / 10,284 out). Total live LLM spend to date: $1.0819.
