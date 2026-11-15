@@ -18,8 +18,8 @@ CONTENT_COLS = ["dedupe_key", "source_slug", "stage", "category", "title", "summ
 def cycle_label(rec: dict) -> str:
     """summer-YYYY, fall-YYYY, ay-YYYY-YY (Jan-May dates) or none, from verified dates only."""
     d = rec.get("starts_on") or rec.get("deadline") or rec.get("opens_on")
-    if not d:
-        return "none"
+    if not d:  # no dates: fall back to the cycle the page names, as written (e.g. "fall 2026")
+        return re.sub(r"[^a-z0-9]+", "-", (rec.get("cycle_label") or "none").lower()).strip("-") or "none"
     dt = date.fromisoformat(d)
     if 6 <= dt.month <= 8:
         return f"summer-{dt.year}"

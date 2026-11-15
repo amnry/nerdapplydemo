@@ -74,8 +74,8 @@ def verify(rec: dict, text: str, source: dict, today: date = None, url_ok=None) 
     def field_quote(f):
         return " ".join(quotes.get(f, []))
 
-    for f in (*DATE_FIELDS, "grades_allowed", "cost_usd", "status"):  # Q1: values must match their quotes
-        if rec.get(f) in (None, []):
+    for f in (*DATE_FIELDS, "grades_allowed", "cost_usd", "status", "cycle_label"):  # Q1: values must match their quotes
+        if rec.get(f) in (None, []) or (f == "status" and rec[f] == "unknown"):
             continue
         q = field_quote(f)
         if not q:
@@ -84,6 +84,8 @@ def verify(rec: dict, text: str, source: dict, today: date = None, url_ok=None) 
         elif f in DATE_FIELDS and not _date_in_quote(rec[f], q):
             add("Q1", f"value_not_in_quote:{f}", "reject")
         elif f == "cost_usd" and not _cost_in_quote(rec[f], q):
+            add("Q1", f"value_not_in_quote:{f}", "reject")
+        elif f == "cycle_label" and rec[f].lower() not in q.lower():
             add("Q1", f"value_not_in_quote:{f}", "reject")
         elif f == "grades_allowed" and not _grades_in_quote(rec[f], q):
             add("Q1", f"value_not_in_quote:{f}", "reject")
@@ -97,6 +99,8 @@ def verify(rec: dict, text: str, source: dict, today: date = None, url_ok=None) 
         if rec.get(f) and not re.search(r"\b20\d{2}\b", field_quote(f)):
             rec[f], year_unknown = None, True
             add("Q3", f"year_missing:{f}", "note")
+    year_unknown = year_unknown or any(rec.get(f) is None and quotes.get(f) and not re.search(r"\b20\d{2}\b", field_quote(f))
+                                       for f in DATE_FIELDS)  # the model already nulled a yearless date (prompt rule 2)
     rec["date_confidence"] = "exact" if any(rec.get(f) for f in DATE_FIELDS) else (
         "year_unknown" if year_unknown else "not_published")
 

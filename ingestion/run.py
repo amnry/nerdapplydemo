@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 import yaml
 
-from .extract import ExtractionNotConfigured, extract
+from .extract import extract
 from .fetch import check_url, fetch_source, new_client
 from .models import ROOT, load_env
 from .publish import SupabaseStore, apply_overrides, build_row, load_overrides, publish_rows
@@ -27,7 +27,7 @@ def run(argv=None) -> dict:
     stats = {"started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
              "mode": "publish" if args.publish else "dry-run", "sources_attempted": 0, "sources_ok": 0,
              "extracted": 0, "verified": 0, "needs_review": 0, "rejected": 0, "tokens_in": 0, "tokens_out": 0,
-             "rejections_by_code": {}, "per_source": [], "rejections": [], "extract_stub": False}
+             "rejections_by_code": {}, "per_source": [], "rejections": []}
     rows: dict = {}
     seen: dict = {}
     with new_client() as client:
@@ -46,8 +46,8 @@ def run(argv=None) -> dict:
             seen[f.sha] = src["id"]
             try:
                 recs, usage = extract(src, f.text, f.sha)
-            except ExtractionNotConfigured:
-                stats["extract_stub"], entry["note"] = True, "fetched; extraction is a stub"
+            except Exception as exc:  # one bad LLM call must not sink the run; it is reported, never hidden
+                entry.update(result="error", note=f"extract failed: {type(exc).__name__}: {str(exc)[:200]}")
                 continue
             stats["tokens_in"] += usage["tokens_in"]
             stats["tokens_out"] += usage["tokens_out"]
