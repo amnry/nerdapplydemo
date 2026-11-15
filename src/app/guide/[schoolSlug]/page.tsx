@@ -4,8 +4,8 @@
 import { notFound } from "next/navigation";
 import "../../../styles/print.css";
 import { getSchool, getVerifiedOpportunities } from "../../../lib/db";
-import { BUCKET_ORDER, matchGuide, scopeCounts } from "../../../lib/match";
-import type { GuideItem, Stage } from "../../../lib/types";
+import { BUCKET_ORDER, actionPhrase, costText, matchGuide, scopeCounts } from "../../../lib/match";
+import type { GuideItem, School, Stage } from "../../../lib/types";
 import PrintButton from "./PrintButton";
 
 export const dynamic = "force-dynamic";
@@ -34,24 +34,18 @@ function evidenceText(evidence: unknown): string[] {
   });
 }
 
-function cost(i: GuideItem): string {
-  const { cost_usd, cost_type } = i.opp;
-  if (cost_usd != null) return cost_usd === 0 ? "free" : `$${cost_usd}`;
-  return cost_type ?? NP;
-}
-
-function Item({ i }: { i: GuideItem }) {
+function Item({ i, school }: { i: GuideItem; school: School }) {
   const { opp } = i;
+  const cost = costText(opp);
   return (
     <li className="item">
       <h3>{opp.title}</h3>
       <p>{opp.summary}</p>
+      {i.why && <p>{i.why}</p>}
+      {i.condition && <p>Condition: {i.condition}</p>}
       <p>
-        {i.why}
-        {i.afterEnroll ? " (available after you enroll)" : ""}
-      </p>
-      <p>
-        Action: {i.action.replace("_", " ")} | Date: {i.dateNote} | Cost: {cost(i)}
+        {actionPhrase(i.action, school)} | Date: {i.dateNote}
+        {cost ? ` | Cost: ${cost}` : ""}
       </p>
       <p>
         Official page: {shortUrl(opp.action_url ?? opp.source_url)} | Verified: {opp.last_verified_at?.slice(0, 10) ?? NP}
@@ -128,6 +122,8 @@ export default async function GuidePage({
   const weekAgo = new Date(now.getTime() - 7 * 86400000).toISOString();
   const recent = items.filter((i) => i.opp.last_verified_at && i.opp.last_verified_at >= weekAgo).length;
   const counts = scopeCounts(items);
+  const specific = counts.school + counts.district + counts.institution;
+  const showsDistance = items.some((i) => i.opp.scope_type === "radius" && i.distanceMiles != null);
   const checklist = items.filter((i) => i.opp.category === "campus_task");
   const rest = stage === "admitted_college" ? items.filter((i) => i.opp.category !== "campus_task") : items;
 
@@ -142,10 +138,11 @@ export default async function GuidePage({
         <p>
           {items.length} opportunities, {recent} verified in the last 7 days.
         </p>
-        <p>
-          Personalization: school {counts.school}, district {counts.district}, institution {counts.institution}, radius {counts.radius}, county{" "}
-          {counts.county}, region {counts.region}
-        </p>
+        {specific > 0 && (
+          <p>
+            {specific} {specific === 1 ? "item" : "items"} specific to {school.name}
+          </p>
+        )}
         <PrintButton />
       </header>
 
@@ -158,11 +155,15 @@ export default async function GuidePage({
             <p>No dated campus tasks published.</p>
           ) : (
             <ul>
-              {checklist.map((i) => (
-                <li key={i.opp.id}>
-                  {i.dateNote}: {i.opp.title}
-                </li>
-              ))}
+              {checklist.map((i) => {
+                const cost = costText(i.opp);
+                return (
+                  <li key={i.opp.id}>
+                    {i.opp.title}
+                    {cost ? ` | ${cost}` : ""} | {i.dateNote}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
@@ -184,7 +185,7 @@ export default async function GuidePage({
             {b === "Confirm first" && <p>Eligibility could not be confirmed from published data. Check with the organizer.</p>}
             <ul className="items">
               {inBucket.map((i) => (
-                <Item key={i.opp.id} i={i} />
+                <Item key={i.opp.id} i={i} school={school} />
               ))}
             </ul>
           </section>
@@ -193,7 +194,9 @@ export default async function GuidePage({
 
       <footer>
         <p>Availability, dates and costs change. Confirm on the official page before acting.</p>
-        <p>Evidence for every item: /qa. Data as of {today}. Distances are straight-line.</p>
+        <p>
+          Evidence for every item: /qa. Data as of {today}.{showsDistance ? " Distances are straight-line." : ""}
+        </p>
       </footer>
     </main>
   );

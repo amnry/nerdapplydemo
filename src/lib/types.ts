@@ -42,10 +42,11 @@ export interface Opportunity {
   venue_lon: number | null;
   grade_basis: GradeBasis;
   grades_allowed: number[] | null;
-  requires: { districts?: string[] | null; admit_program?: string | null; enrollment?: string | null };
+  requires: { districts?: string[] | null; enrollment?: string | null; [condition: string]: unknown }; // districts are district slugs
   opens_on: string | null; // YYYY-MM-DD
   deadline: string | null;
   starts_on: string | null;
+  date_text: string | null; // migration 002; verbatim wording when the page gave no year
   cycle_label: string | null;
   date_confidence: DateConfidence;
   status: OppStatus;
@@ -63,14 +64,15 @@ export interface Opportunity {
 }
 
 export type Eligibility = "eligible" | "ineligible" | "unknown";
-export type Bucket = "This month" | "Next 3 months" | "Plan ahead" | "Confirm first";
+export type Bucket = "This month" | "Next 3 months" | "Plan ahead" | "After you enroll" | "Confirm first";
 
 export interface GuideItem {
   opp: Opportunity;
   eligibility: Eligibility;
   reasons: string[]; // rule outcomes, shown under "Why is this here?"
   bucket: Bucket;
-  why: string; // templated why line
+  why: string | null; // templated why line; null when it would add nothing (college guides, institution scope)
+  condition: string | null; // program condition from requires, stated on the card; forces Confirm first
   action: ActionType; // may differ from opp.action_type (ask_school override)
   afterEnroll: boolean;
   date: string | null; // the date used for bucketing

@@ -2,7 +2,7 @@
 // Pure-function tests: no DB, no network. Render-level checks that need the page are marked todo.
 
 import { describe, expect, it } from "vitest";
-import { matchGuide } from "../src/lib/match";
+import { actionPhrase, costText, matchGuide } from "../src/lib/match";
 import type { Opportunity, School } from "../src/lib/types";
 
 const TODAY = "2026-11-14";
@@ -29,7 +29,7 @@ function opp(over: Partial<Opportunity>): Opportunity {
     id, dedupe_key: `test-${id}`, source_id: 1, stage: "grade_8", category: "program", title: `TEST row ${id}`,
     summary: "TEST ONLY", scope_type: "county", scope_value: "Suffolk", venue_lat: null, venue_lon: null,
     grade_basis: "current", grades_allowed: [8], requires: {}, opens_on: null, deadline: "2026-11-30", starts_on: null,
-    cycle_label: null, date_confidence: "exact", status: "open", action_type: "apply", action_url: null,
+    date_text: null, cycle_label: null, date_confidence: "exact", status: "open", action_type: "apply", action_url: null,
     cost_type: null, cost_usd: null, tags: [], evidence: [], source_url: "https://example.test", verification_state: "verified",
     extraction_method: "manual", review_note: null, last_verified_at: null, ...over,
   };
@@ -85,18 +85,20 @@ describe("golden cases", () => {
     });
     const [item] = guide(stonyBrook, [sch]);
     expect(item.action).toBe("check_award");
+    expect(actionPhrase(item.action, stonyBrook)).toBe("Check your award letter");
   });
   it.todo("4b. rendered card for an auto_considered scholarship contains no apply button (needs page render)");
 
-  it("5. a date with no year says to confirm; only a missing date says 'date not published'", () => {
-    const noYear = opp({ date_confidence: "year_unknown", deadline: "2026-11-20" });
-    const [a] = guide(threeVillage, [noYear]);
+  it("5. a date with no year prints its own wording; only a missing date says 'date not published'", () => {
+    const withText = opp({ date_confidence: "year_unknown", deadline: "2026-11-20", date_text: "November 20" });
+    const [a] = guide(threeVillage, [withText]);
     expect(a.date).toBeNull();
     expect(a.bucket).toBe("Plan ahead");
-    expect(a.dateNote).toBe("date listed without a year, confirm with the school");
+    expect(a.dateNote).toBe("November 20 (year not stated on the page)");
+    const noText = opp({ date_confidence: "year_unknown", deadline: "2026-11-20" });
+    expect(guide(threeVillage, [noText])[0].dateNote).toBe("date listed without a year, confirm with the school");
     const none = opp({ date_confidence: "not_published", deadline: null });
-    const [b] = guide(threeVillage, [none]);
-    expect(b.dateNote).toBe("date not published");
+    expect(guide(threeVillage, [none])[0].dateNote).toBe("date not published");
   });
 
   it("6. cancelled or past-cycle rows never appear in This month", () => {
@@ -122,4 +124,51 @@ describe("golden cases", () => {
     expect(guide(threeVillage, [])).toEqual([]);
   });
   it.todo("8b. page renders its empty state for an empty guide (page.tsx has one; needs page render to test)");
+});
+
+describe("display rules", () => {
+  const college = (over: Partial<Opportunity>) =>
+    opp({ stage: "admitted_college", scope_type: "institution", scope_value: "stony-brook", grades_allowed: null, ...over });
+
+  it("enrollment=current rows go to 'After you enroll'", () => {
+    const [item] = guide(stonyBrook, [college({ requires: { enrollment: "current" } })]);
+    expect(item.bucket).toBe("After you enroll");
+  });
+
+  it("a program condition goes to 'Confirm first' with the condition stated and the ask-school action", () => {
+    const [item] = guide(stonyBrook, [college({ requires: { admit_program: "Honors College" } })]);
+    expect(item.bucket).toBe("Confirm first");
+    expect(item.condition).toBe("Had to be requested with the admission application: Honors College");
+    expect(item.action).toBe("ask_school");
+    expect(actionPhrase(item.action, stonyBrook)).toBe("Ask the admissions office");
+  });
+
+  it("a condition beats enrollment=current: the row is Confirm first, not After you enroll", () => {
+    const [item] = guide(stonyBrook, [college({ requires: { enrollment: "current", major: "Biology" } })]);
+    expect(item.bucket).toBe("Confirm first");
+    expect(item.condition).toBe("major: Biology");
+  });
+
+  it("rows with no condition have a null condition", () => {
+    expect(guide(stonyBrook, [college({})])[0].condition).toBeNull();
+  });
+
+  it("institution-scope rows have no why line; other scopes keep theirs", () => {
+    expect(guide(stonyBrook, [college({})])[0].why).toBeNull();
+    expect(guide(threeVillage, [opp({})])[0].why).toBe("Open county-wide in Suffolk");
+  });
+
+  it("cost is null when unknown, so the field can be hidden", () => {
+    expect(costText(opp({}))).toBeNull();
+    expect(costText(opp({ cost_usd: 0 }))).toBe("free");
+    expect(costText(opp({ cost_usd: 50 }))).toBe("$50");
+    expect(costText(opp({ cost_type: "varies" }))).toBe("varies");
+  });
+
+  it("action phrases are plain", () => {
+    expect(actionPhrase("apply", stonyBrook)).toBe("Apply");
+    expect(actionPhrase("register", stonyBrook)).toBe("Register");
+    expect(actionPhrase("attend", stonyBrook)).toBe("Attend");
+    expect(actionPhrase("ask_school", gardenCity)).toBe("Ask the school");
+  });
 });

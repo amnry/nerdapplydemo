@@ -2,9 +2,9 @@
 // No LLM and no network; the caller passes in rows already read from the DB, so results are deterministic and testable.
 
 import { haversineMiles } from "./distance";
-import type { Bucket, Eligibility, GuideItem, Opportunity, School, ScopeType } from "./types";
+import type { ActionType, Bucket, Eligibility, GuideItem, Opportunity, School, ScopeType } from "./types";
 
-export const BUCKET_ORDER: Bucket[] = ["This month", "Next 3 months", "Plan ahead", "Confirm first"];
+export const BUCKET_ORDER: Bucket[] = ["This month", "Next 3 months", "Plan ahead", "After you enroll", "Confirm first"];
 
 // schools has no region column, so the one supported region maps to counties here.
 const REGION_COUNTIES: Record<string, string[]> = { "long-island": ["nassau", "suffolk"] };
@@ -59,15 +59,31 @@ interface Eligible {
   state: Eligibility;
   reasons: string[];
   afterEnroll: boolean;
-  askSchool: boolean;
+  conditions: string[]; // program conditions from requires, stated as written
+}
+
+const CONDITION_LABELS: Record<string, string> = {
+  admit_program: "Had to be requested with the admission application",
+  note: "Note",
+};
+
+// Every requires key except the two handled by their own rules (districts, enrollment) is a program condition.
+function programConditions(req: Opportunity["requires"]): string[] {
+  const out: string[] = [];
+  for (const [key, value] of Object.entries(req)) {
+    if (key === "districts" || key === "enrollment" || value == null || value === "" || (Array.isArray(value) && value.length === 0)) continue;
+    const text = Array.isArray(value) ? value.join(", ") : String(value);
+    out.push(`${CONDITION_LABELS[key] ?? key.replace(/_/g, " ")}: ${text}`);
+  }
+  return out;
 }
 
 // Step 2: three-valued eligibility. Any ineligible rule wins, then any unknown rule, otherwise eligible.
 export function eligibility(school: School, opp: Opportunity): Eligible {
   const outcomes: { state: Eligibility; reason: string }[] = [];
   let afterEnroll = false;
-  let askSchool = false;
   const req = opp.requires ?? {};
+  const conditions = programConditions(req);
 
   if (school.kind === "middle_school") {
     const grade = isRising(opp) ? 9 : 8;
@@ -101,29 +117,28 @@ export function eligibility(school: School, opp: Opportunity): Eligible {
       afterEnroll = true;
       outcomes.push({ state: "eligible", reason: "Requires current enrollment: available after you enroll" });
     }
-    if (req.admit_program) {
-      askSchool = true;
-      outcomes.push({ state: "eligible", reason: `Required a request with the admission application (${req.admit_program}): ask the office` });
-    }
   }
+
+  // A program condition cannot be checked against anything we hold, so it is unknown and the row needs confirming.
+  for (const c of conditions) outcomes.push({ state: "unknown", reason: `Condition: ${c}` });
 
   const state: Eligibility = outcomes.some((o) => o.state === "ineligible")
     ? "ineligible"
     : outcomes.some((o) => o.state === "unknown")
       ? "unknown"
       : "eligible";
-  return { state, reasons: outcomes.map((o) => `${o.state}: ${o.reason}`), afterEnroll, askSchool };
+  return { state, reasons: outcomes.map((o) => `${o.state}: ${o.reason}`), afterEnroll, conditions };
 }
 
 // Step 5: templated from data only.
-function whyLine(school: School, opp: Opportunity, miles: number | null): string {
+function whyLine(school: School, opp: Opportunity, miles: number | null): string | null {
   switch (opp.scope_type) {
     case "school":
       return "Offered by your school";
     case "district":
       return "Offered by your district";
     case "institution":
-      return `Only for admitted ${school.name} students`;
+      return null; // every row on a college guide is institution-scoped, so the line would repeat itself
     case "radius":
       return miles != null ? `${miles.toFixed(1)} miles straight-line from your school` : "Near your school";
     case "county":
@@ -139,6 +154,33 @@ function bucketFor(date: string | null, confident: boolean, today: string): Buck
   if (date <= endOfMonth(today)) return "This month";
   if (date <= isoAddMonths(today, 3)) return "Next 3 months";
   return "Plan ahead";
+}
+
+// date_text is the page's own wording when it gave no year; it is printed as written, never completed with a guessed year.
+function dateNote(opp: Opportunity, date: string | null, confident: boolean): string {
+  if (opp.date_text) return `${opp.date_text} (year not stated on the page)`;
+  if (date && confident) return date;
+  if (date) return "date listed without a year, confirm with the school";
+  return "date not published";
+}
+
+// Cost to print, or null when unknown so the field can be hidden.
+export function costText(opp: Opportunity): string | null {
+  if (opp.cost_usd != null) return opp.cost_usd === 0 ? "free" : `$${opp.cost_usd}`;
+  return opp.cost_type ?? null;
+}
+
+const ACTION_PHRASES: Record<ActionType, string> = {
+  apply: "Apply",
+  register: "Register",
+  attend: "Attend",
+  check_award: "Check your award letter",
+  ask_school: "Ask the school",
+  mark_calendar: "Mark your calendar",
+};
+
+export function actionPhrase(action: ActionType, school: School): string {
+  return action === "ask_school" && school.kind === "college" ? "Ask the admissions office" : ACTION_PHRASES[action];
 }
 
 export interface MatchOptions {
@@ -164,7 +206,7 @@ export function matchGuide(school: School, opps: Opportunity[], opts: MatchOptio
     const date = opp.deadline ?? opp.starts_on ?? opp.opens_on;
     const confident = opp.date_confidence === "exact";
     const miles = distanceMiles(school, opp);
-    const bucket: Bucket = e.state === "unknown" ? "Confirm first" : e.afterEnroll ? "Plan ahead" : bucketFor(date, confident, opts.today);
+    const bucket: Bucket = e.state === "unknown" ? "Confirm first" : e.afterEnroll ? "After you enroll" : bucketFor(date, confident, opts.today);
 
     hits.set(opp.id, opp.tags.filter((t) => interests.has(norm(t))).length);
     items.push({
@@ -173,10 +215,11 @@ export function matchGuide(school: School, opps: Opportunity[], opts: MatchOptio
       reasons: e.reasons,
       bucket,
       why: whyLine(school, opp, miles),
-      action: e.askSchool ? "ask_school" : opp.action_type,
+      condition: e.conditions.length ? e.conditions.join("; ") : null,
+      action: e.conditions.length && opp.action_type === "apply" ? "ask_school" : opp.action_type,
       afterEnroll: e.afterEnroll,
       date: date && confident ? date : null,
-      dateNote: date && confident ? date : opp.date_confidence === "year_unknown" ? "date listed without a year, confirm with the school" : "date not published",
+      dateNote: dateNote(opp, date, confident),
       distanceMiles: miles,
     });
   }
