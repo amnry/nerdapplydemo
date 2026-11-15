@@ -2,7 +2,7 @@
 // Every number is computed from database rows at request time; nothing is typed in.
 
 import { getAllSchools, getQaData, getVerifiedOpportunities } from "../../lib/db";
-import { matchGuide, scopeCounts } from "../../lib/match";
+import { gradeExclusions, matchGuide, scopeCounts } from "../../lib/match";
 import type { Opportunity, Stage } from "../../lib/types";
 
 export const dynamic = "force-dynamic";
@@ -144,6 +144,32 @@ export default async function QaPage() {
           })}
         </tbody>
       </table>
+
+      <h2>Excluded by the grade rule</h2>
+      <p>Rows in scope for a middle school that were removed because the student's grade is not allowed, with the page's grade quote.</p>
+      {schools
+        .filter((sc) => sc.kind === "middle_school")
+        .map((sc) => {
+          const excluded = gradeExclusions(sc, oppsByStage.get("grade_8") ?? [], today);
+          return (
+            <section key={sc.slug}>
+              <h3>
+                {sc.name} ({excluded.length})
+              </h3>
+              {excluded.length === 0 ? (
+                <p>None.</p>
+              ) : (
+                <ul>
+                  {excluded.map((x) => (
+                    <li key={x.opp.id}>
+                      {x.opp.title} | {x.reason.replace("ineligible: ", "")} | Quote: {x.quote ? `"${x.quote}"` : "none recorded"} | {x.opp.source_url}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          );
+        })}
     </main>
   );
 }

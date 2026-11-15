@@ -32,6 +32,13 @@ export async function getAllSchools(): Promise<School[]> {
   return (data ?? []) as School[];
 }
 
+// source id -> owner name, so grouped cards can say which school a club list belongs to.
+export async function getSourceOwners(): Promise<Record<number, string>> {
+  const { data, error } = await client().from("sources").select("id, owner");
+  if (error) throw new Error(`sources read failed: ${error.message}`);
+  return Object.fromEntries((data ?? []).map((s: { id: number; owner: string }) => [s.id, s.owner]));
+}
+
 // Everything the /qa page shows, read in one place. Rows are returned as-is; the page computes every number from them.
 export interface QaData {
   lastRun: Record<string, unknown> | null;

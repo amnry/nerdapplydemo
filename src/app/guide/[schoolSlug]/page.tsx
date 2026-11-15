@@ -3,7 +3,7 @@
 
 import { notFound } from "next/navigation";
 import "../../../styles/print.css";
-import { getSchool, getVerifiedOpportunities } from "../../../lib/db";
+import { getSchool, getSourceOwners, getVerifiedOpportunities } from "../../../lib/db";
 import { BUCKET_ORDER, actionPhrase, costText, matchGuide, scopeCounts } from "../../../lib/match";
 import type { GuideItem, School, Stage } from "../../../lib/types";
 import PrintButton from "./PrintButton";
@@ -42,7 +42,7 @@ function Item({ i, school }: { i: GuideItem; school: School }) {
       <h3>{opp.title}</h3>
       <p>{opp.summary}</p>
       {i.why && <p>{i.why}</p>}
-      {i.condition && <p>Condition: {i.condition}</p>}
+      {i.condition && <p>{i.condition}</p>}
       <p>
         {actionPhrase(i.action, school)} | Date: {i.dateNote}
         {cost ? ` | Cost: ${cost}` : ""}
@@ -66,6 +66,63 @@ function Item({ i, school }: { i: GuideItem; school: School }) {
       </details>
     </li>
   );
+}
+
+// One card per club-owning school: the club rows from one source collapse into a single list of names.
+function ClubsCard({ owner, items }: { owner: string; items: GuideItem[] }) {
+  const newest = items.map((i) => i.opp.last_verified_at).filter(Boolean).sort().pop();
+  return (
+    <li className="item">
+      <h3>
+        Clubs at {owner} ({items.length})
+      </h3>
+      <ul>
+        {items.map((i) => (
+          <li key={i.opp.id}>{i.opp.title}</li>
+        ))}
+      </ul>
+      <p>
+        Official page: {shortUrl(items[0].opp.source_url)} | Verified: {newest?.slice(0, 10) ?? NP}
+      </p>
+      <details>
+        <summary>Why is this here?</summary>
+        {items.map((i) => (
+          <div key={i.opp.id}>
+            <strong>{i.opp.title}</strong>
+            <ul>
+              {i.reasons.map((r, n) => (
+                <li key={n}>{r}</li>
+              ))}
+              {evidenceText(i.opp.evidence).map((q, n) => (
+                <li key={`e${n}`}>{q}</li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </details>
+    </li>
+  );
+}
+
+// Within one bucket, club rows of the same source become one card placed where the first club was.
+function bucketEntries(items: GuideItem[], owners: Record<number, string>) {
+  const entries: ({ kind: "item"; i: GuideItem } | { kind: "clubs"; owner: string; items: GuideItem[] })[] = [];
+  const groups = new Map<number, GuideItem[]>();
+  for (const i of items) {
+    if (i.opp.category !== "club") {
+      entries.push({ kind: "item", i });
+      continue;
+    }
+    const existing = groups.get(i.opp.source_id);
+    if (existing) {
+      existing.push(i);
+    } else {
+      const group = [i];
+      groups.set(i.opp.source_id, group);
+      entries.push({ kind: "clubs", owner: owners[i.opp.source_id] ?? "this school", items: group });
+    }
+  }
+  return entries;
 }
 
 // Dated items grouped into the three windows of the 8th-grade year ahead; empty windows say so instead of guessing.
@@ -114,7 +171,7 @@ export default async function GuidePage({
   if (!school) notFound();
 
   const stage: Stage = school.kind === "middle_school" ? "grade_8" : "admitted_college";
-  const opps = await getVerifiedOpportunities(stage);
+  const [opps, owners] = await Promise.all([getVerifiedOpportunities(stage), getSourceOwners()]);
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
   const items = matchGuide(school, opps, { today, interests: interests?.split(",").filter(Boolean) });
@@ -124,8 +181,10 @@ export default async function GuidePage({
   const counts = scopeCounts(items);
   const specific = counts.school + counts.district + counts.institution;
   const showsDistance = items.some((i) => i.opp.scope_type === "radius" && i.distanceMiles != null);
-  const checklist = items.filter((i) => i.opp.category === "campus_task");
-  const rest = stage === "admitted_college" ? items.filter((i) => i.opp.category !== "campus_task") : items;
+  // The checklist is plain dated tasks; anything with a program condition or an enrollment requirement is listed in its own section instead.
+  const onChecklist = (i: GuideItem) => stage === "admitted_college" && i.opp.category === "campus_task" && !i.condition && !i.afterEnroll;
+  const checklist = items.filter(onChecklist);
+  const rest = items.filter((i) => !onChecklist(i));
 
   return (
     <main className="guide">
@@ -184,9 +243,13 @@ export default async function GuidePage({
             <h2>{b}</h2>
             {b === "Confirm first" && <p>Eligibility could not be confirmed from published data. Check with the organizer.</p>}
             <ul className="items">
-              {inBucket.map((i) => (
-                <Item key={i.opp.id} i={i} school={school} />
-              ))}
+              {bucketEntries(inBucket, owners).map((e) =>
+                e.kind === "item" ? (
+                  <Item key={e.i.opp.id} i={e.i} school={school} />
+                ) : (
+                  <ClubsCard key={`clubs-${e.items[0].opp.id}`} owner={e.owner} items={e.items} />
+                ),
+              )}
             </ul>
           </section>
         );

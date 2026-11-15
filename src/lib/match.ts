@@ -60,12 +60,10 @@ interface Eligible {
   reasons: string[];
   afterEnroll: boolean;
   conditions: string[]; // program conditions from requires, stated as written
+  gradeExcluded: boolean; // true when the grade rule is what made the row ineligible
 }
 
-const CONDITION_LABELS: Record<string, string> = {
-  admit_program: "Had to be requested with the admission application",
-  note: "Note",
-};
+const CONDITION_LABELS: Record<string, string> = { note: "Note" };
 
 // Every requires key except the two handled by their own rules (districts, enrollment) is a program condition.
 function programConditions(req: Opportunity["requires"]): string[] {
@@ -73,6 +71,10 @@ function programConditions(req: Opportunity["requires"]): string[] {
   for (const [key, value] of Object.entries(req)) {
     if (key === "districts" || key === "enrollment" || value == null || value === "" || (Array.isArray(value) && value.length === 0)) continue;
     const text = Array.isArray(value) ? value.join(", ") : String(value);
+    if (key === "admit_program") {
+      out.push(`Only for students admitted through ${text}`);
+      continue;
+    }
     out.push(`${CONDITION_LABELS[key] ?? key.replace(/_/g, " ")}: ${text}`);
   }
   return out;
@@ -82,6 +84,7 @@ function programConditions(req: Opportunity["requires"]): string[] {
 export function eligibility(school: School, opp: Opportunity): Eligible {
   const outcomes: { state: Eligibility; reason: string }[] = [];
   let afterEnroll = false;
+  let gradeExcluded = false;
   const req = opp.requires ?? {};
   const conditions = programConditions(req);
 
@@ -99,6 +102,7 @@ export function eligibility(school: School, opp: Opportunity): Eligible {
     } else if (opp.grades_allowed.includes(grade)) {
       outcomes.push({ state: "eligible", reason: `Grade ${grade} is allowed (${opp.grade_basis} grade; student is ${label})` });
     } else {
+      gradeExcluded = true;
       outcomes.push({ state: "ineligible", reason: `Grade ${grade} not in allowed ${opp.grades_allowed.join(", ")} (${opp.grade_basis} grade; student is ${label})` });
     }
 
@@ -127,7 +131,7 @@ export function eligibility(school: School, opp: Opportunity): Eligible {
     : outcomes.some((o) => o.state === "unknown")
       ? "unknown"
       : "eligible";
-  return { state, reasons: outcomes.map((o) => `${o.state}: ${o.reason}`), afterEnroll, conditions };
+  return { state, reasons: outcomes.map((o) => `${o.state}: ${o.reason}`), afterEnroll, conditions, gradeExcluded };
 }
 
 // Step 5: templated from data only.
@@ -188,17 +192,42 @@ export interface MatchOptions {
   interests?: string[];
 }
 
+// A row is a candidate for a school's guide when it is verified, live, in the school's stage and scope.
+function isCandidate(school: School, opp: Opportunity, today: string): boolean {
+  const stage = school.kind === "middle_school" ? "grade_8" : "admitted_college";
+  if (opp.stage !== stage || opp.verification_state !== "verified") return false;
+  if (opp.status === "closed" || opp.status === "cancelled") return false;
+  if (opp.deadline && opp.deadline < today && opp.status !== "ongoing") return false;
+  return inScope(school, opp);
+}
+
+export interface GradeExclusion {
+  opp: Opportunity;
+  reason: string; // the rule outcome, e.g. "Grade 9 not in allowed 6, 7, 8 (entering grade; ...)"
+  quote: string | null; // the page's own wording for the grades, from the row's evidence
+}
+
+// Candidate rows the grade rule removed from a school's guide, each with the grade quote that justified the removal.
+export function gradeExclusions(school: School, opps: Opportunity[], today: string): GradeExclusion[] {
+  const out: GradeExclusion[] = [];
+  for (const opp of opps) {
+    if (!isCandidate(school, opp, today)) continue;
+    const e = eligibility(school, opp);
+    if (!e.gradeExcluded) continue;
+    const ev = Array.isArray(opp.evidence) ? (opp.evidence as { field?: string; quote?: string }[]) : [];
+    const quote = ev.find((x) => x?.field === "grades_allowed")?.quote ?? null;
+    out.push({ opp, reason: e.reasons.find((r) => r.startsWith("ineligible: Grade")) ?? "grade rule", quote });
+  }
+  return out.sort((a, b) => a.opp.id - b.opp.id);
+}
+
 export function matchGuide(school: School, opps: Opportunity[], opts: MatchOptions): GuideItem[] {
   const interests = new Set((opts.interests ?? []).map(norm));
-  const stage = school.kind === "middle_school" ? "grade_8" : "admitted_college";
   const hits = new Map<number, number>();
   const items: GuideItem[] = [];
 
   for (const opp of opps) {
-    if (opp.stage !== stage || opp.verification_state !== "verified") continue;
-    if (opp.status === "closed" || opp.status === "cancelled") continue;
-    if (opp.deadline && opp.deadline < opts.today && opp.status !== "ongoing") continue;
-    if (!inScope(school, opp)) continue;
+    if (!isCandidate(school, opp, opts.today)) continue;
 
     const e = eligibility(school, opp);
     if (e.state === "ineligible") continue;

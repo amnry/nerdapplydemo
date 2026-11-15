@@ -2,7 +2,7 @@
 // Pure-function tests: no DB, no network. Render-level checks that need the page are marked todo.
 
 import { describe, expect, it } from "vitest";
-import { actionPhrase, costText, matchGuide } from "../src/lib/match";
+import { actionPhrase, costText, gradeExclusions, matchGuide } from "../src/lib/match";
 import type { Opportunity, School } from "../src/lib/types";
 
 const TODAY = "2026-11-14";
@@ -138,7 +138,7 @@ describe("display rules", () => {
   it("a program condition goes to 'Confirm first' with the condition stated and the ask-school action", () => {
     const [item] = guide(stonyBrook, [college({ requires: { admit_program: "Honors College" } })]);
     expect(item.bucket).toBe("Confirm first");
-    expect(item.condition).toBe("Had to be requested with the admission application: Honors College");
+    expect(item.condition).toBe("Only for students admitted through Honors College");
     expect(item.action).toBe("ask_school");
     expect(actionPhrase(item.action, stonyBrook)).toBe("Ask the admissions office");
   });
@@ -164,6 +164,25 @@ describe("display rules", () => {
     expect(costText(opp({ cost_usd: 50 }))).toBe("$50");
     expect(costText(opp({ cost_type: "varies" }))).toBe("varies");
   });
+
+  it("gradeExclusions lists rows the grade rule removed, with the grades quote", () => {
+    const camp = opp({
+      grade_basis: "entering", grades_allowed: [6, 7, 8], cycle_label: "summer-2027", starts_on: "2027-07-01", deadline: "2027-03-01",
+      evidence: [{ field: "title", quote: "TEST camp" }, { field: "grades_allowed", quote: "entering grades 6 to 8" }],
+    });
+    const ok = opp({});
+    const districtOnly = opp({ requires: { districts: ["garden-city-public-schools"] } });
+    const out = gradeExclusions(threeVillage, [camp, ok, districtOnly], TODAY);
+    expect(out.map((x) => x.opp.id)).toEqual([camp.id]); // the district exclusion is not a grade exclusion
+    expect(out[0].quote).toBe("entering grades 6 to 8");
+    expect(out[0].reason).toMatch(/Grade 9 not in allowed 6, 7, 8/);
+  });
+
+  it("gradeExclusions is empty for a college", () => {
+    expect(gradeExclusions(stonyBrook, [college({})], TODAY)).toEqual([]);
+  });
+  it.todo("campus_task rows with a condition or enrollment=current are off the checklist (page-level)");
+  it.todo("club rows of one source render as one 'Clubs at <school> (N)' card (page-level)");
 
   it("action phrases are plain", () => {
     expect(actionPhrase("apply", stonyBrook)).toBe("Apply");
