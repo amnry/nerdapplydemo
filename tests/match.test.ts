@@ -203,6 +203,16 @@ describe("display rules", () => {
   it.todo("campus_task rows with a condition or enrollment=current are off the checklist (page-level)");
   it.todo("club rows of one source render as one 'Clubs at <school> (N)' card (page-level)");
 
+  it("with interests=['stem'], a stem-tagged row sorts above an untagged row in the same section", () => {
+    const untagged = opp({ scope_type: "district", scope_value: "three-village-csd" }); // more specific scope, would sort first without interests
+    const stem = opp({ tags: ["stem"] });
+    const items = matchGuide(threeVillage, [untagged, stem], { today: TODAY, interests: ["stem"] });
+    expect(items.map((i) => i.bucket)).toEqual(["This month", "This month"]);
+    expect(items.map((i) => i.opp.id)).toEqual([stem.id, untagged.id]);
+    expect(items[0].interestMatches).toEqual(["stem"]);
+    expect(guide(threeVillage, [untagged, stem]).map((i) => i.opp.id)).toEqual([untagged.id, stem.id]);
+  });
+
   it("action phrases are plain", () => {
     expect(actionPhrase("apply", stonyBrook)).toBe("Apply");
     expect(actionPhrase("register", stonyBrook)).toBe("Register");

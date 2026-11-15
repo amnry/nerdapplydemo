@@ -1,9 +1,10 @@
 "use client";
 // Stage toggle, school picker and Generate button for the home page; the only client code on it, because the choices change what the picker lists.
-// Generate navigates to /guide/<slug>, so the URL carries only the school slug.
+// Generate navigates to /guide/<slug>, adding ?interests=a,b when interests are chosen; the URL never carries personal data.
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { INTEREST_TAGS, interestLabel } from "../lib/interests";
 
 export interface PickerSchool {
   slug: string;
@@ -22,6 +23,8 @@ export default function HomePicker({ schools }: { schools: PickerSchool[] }) {
   const router = useRouter();
   const [stage, setStage] = useState<PickerSchool["stage"]>("grade_8");
   const [slug, setSlug] = useState("");
+  const [interests, setInterests] = useState<string[]>([]);
+  const toggle = (tag: string) => setInterests((cur) => (cur.includes(tag) ? cur.filter((t) => t !== tag) : [...cur, tag]));
 
   const inStage = schools.filter((s) => s.stage === stage);
   const chosen = inStage.find((s) => s.slug === slug) ?? inStage[0];
@@ -30,7 +33,9 @@ export default function HomePicker({ schools }: { schools: PickerSchool[] }) {
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        if (chosen) router.push(`/guide/${chosen.slug}`);
+        if (!chosen) return;
+        const picked = INTEREST_TAGS.filter((t) => interests.includes(t));
+        router.push(`/guide/${chosen.slug}${picked.length ? `?interests=${picked.join(",")}` : ""}`);
       }}
     >
       <fieldset>
@@ -56,6 +61,15 @@ export default function HomePicker({ schools }: { schools: PickerSchool[] }) {
       </p>
       {chosen && <p>{chosen.detail}</p>}
       {inStage.length === 0 && <p>No schools are supported for this stage yet.</p>}
+
+      <fieldset>
+        <legend>Interests (optional)</legend>
+        {INTEREST_TAGS.map((t) => (
+          <label key={t}>
+            <input type="checkbox" checked={interests.includes(t)} onChange={() => toggle(t)} /> {interestLabel(t)}{" "}
+          </label>
+        ))}
+      </fieldset>
 
       <button type="submit" disabled={!chosen}>
         Generate

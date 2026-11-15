@@ -219,7 +219,6 @@ export function gradeExclusions(school: School, opps: Opportunity[], today: stri
 
 export function matchGuide(school: School, opps: Opportunity[], opts: MatchOptions): GuideItem[] {
   const interests = new Set((opts.interests ?? []).map(norm));
-  const hits = new Map<number, number>();
   const items: GuideItem[] = [];
 
   for (const opp of opps) {
@@ -233,7 +232,6 @@ export function matchGuide(school: School, opps: Opportunity[], opts: MatchOptio
     const miles = distanceMiles(school, opp);
     const bucket: Bucket = e.state === "unknown" ? "Confirm first" : e.afterEnroll ? "After you enroll" : bucketFor(date, confident, opts.today);
 
-    hits.set(opp.id, opp.tags.filter((t) => interests.has(norm(t))).length);
     items.push({
       opp,
       eligibility: e.state,
@@ -246,17 +244,20 @@ export function matchGuide(school: School, opps: Opportunity[], opts: MatchOptio
       date: date && confident ? date : null,
       dateNote: dateNote(opp, date, confident),
       distanceMiles: miles,
+      interestMatches: (opp.tags ?? []).filter((t) => interests.has(norm(t))),
     });
   }
 
-  // Step 4: specificity, interest overlap, nearest date, distance, then id for a stable order.
+  // Step 4: within a section, rows matching a chosen interest first, then specificity, nearest date, distance, then id for a stable order.
+  // Interests only reorder; they never move a row between sections or change eligibility.
+  const matched = (i: GuideItem) => (i.interestMatches.length > 0 ? 0 : 1);
   const cmpNullLast = (a: number | string | null, b: number | string | null) =>
     a === b ? 0 : a === null ? 1 : b === null ? -1 : a < b ? -1 : 1;
   items.sort(
     (a, b) =>
       BUCKET_ORDER.indexOf(a.bucket) - BUCKET_ORDER.indexOf(b.bucket) ||
+      matched(a) - matched(b) ||
       SPECIFICITY[a.opp.scope_type] - SPECIFICITY[b.opp.scope_type] ||
-      (hits.get(b.opp.id) ?? 0) - (hits.get(a.opp.id) ?? 0) ||
       cmpNullLast(a.date, b.date) ||
       cmpNullLast(a.distanceMiles, b.distanceMiles) ||
       a.opp.id - b.opp.id,

@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import "../../../styles/print.css";
 import { getSchool, getSourceOwners, getVerifiedOpportunities } from "../../../lib/db";
 import { BUCKET_ORDER, actionPhrase, costText, matchGuide, scopeCounts } from "../../../lib/match";
+import { interestLabel, parseInterests } from "../../../lib/interests";
 import type { GuideItem, School, Stage } from "../../../lib/types";
 import PrintButton from "./PrintButton";
 
@@ -43,6 +44,7 @@ function Item({ i, school }: { i: GuideItem; school: School }) {
       <p>{opp.summary}</p>
       {i.why && <p>{i.why}</p>}
       {i.condition && <p>{i.condition}</p>}
+      {i.interestMatches.length > 0 && <p>Matches your interest: {i.interestMatches.map(interestLabel).join(", ")}</p>}
       <p>
         {actionPhrase(i.action, school)} | Date: {i.dateNote}
         {cost ? ` | Cost: ${cost}` : ""}
@@ -169,7 +171,8 @@ export default async function GuidePage({
   const [opps, owners] = await Promise.all([getVerifiedOpportunities(stage), getSourceOwners()]);
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
-  const items = matchGuide(school, opps, { today, interests: interests?.split(",").filter(Boolean) });
+  const chosenInterests = parseInterests(interests);
+  const items = matchGuide(school, opps, { today, interests: chosenInterests });
 
   const weekAgo = new Date(now.getTime() - 7 * 86400000).toISOString();
   const recent = items.filter((i) => i.opp.last_verified_at && i.opp.last_verified_at >= weekAgo).length;
@@ -189,6 +192,7 @@ export default async function GuidePage({
           {school.kind === "middle_school" ? school.district : [school.city, school.county].filter(Boolean).join(", ")} | Stage:{" "}
           {stage === "grade_8" ? "8th grade" : "Admitted to college"} | Generated {today}
         </p>
+        {chosenInterests.length > 0 && <p>Interests: {chosenInterests.map(interestLabel).join(", ")}</p>}
         <p>
           {items.length} opportunities, {recent} verified in the last 7 days.
         </p>

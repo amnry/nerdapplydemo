@@ -78,4 +78,5 @@ export interface GuideItem {
   date: string | null; // the date used for bucketing
   dateNote: string; // human label: the date, or "date not published"
   distanceMiles: number | null;
+  interestMatches: string[]; // the student's chosen interests that this row is tagged with
 }
