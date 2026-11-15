@@ -1,7 +1,7 @@
 // QA page: last pipeline run, per-source status, rejections by reason, needs_review list, cost and the personalization meter per school.
 // Every number is computed from database rows at request time; nothing is typed in.
 
-import { getAllSchools, getQaData, getVerifiedOpportunities } from "../../lib/db";
+import { getAllSchools, getQaData, getVerifiedOpportunities, type QaData } from "../../lib/db";
 import { gradeExclusions, matchGuide, scopeCounts } from "../../lib/match";
 import type { Opportunity, Stage } from "../../lib/types";
 
@@ -20,6 +20,21 @@ function evidenceQuotes(evidence: unknown): string[] {
   });
 }
 
+function fetchState(result: unknown): string {
+  switch (result) {
+    case "ok":
+      return "Fetched";
+    case "blocked_by_robots":
+      return "BLOCKED by robots.txt";
+    case "error":
+      return "FAILED";
+    case "skipped":
+      return "Skipped";
+    default:
+      return "Not checked yet";
+  }
+}
+
 export default async function QaPage() {
   const [qa, schools] = await Promise.all([getQaData(), getAllSchools()]);
   const stages: Stage[] = ["grade_8", "admitted_college"];
@@ -29,6 +44,18 @@ export default async function QaPage() {
 
   const byCode = new Map<string, number>();
   for (const r of qa.rejections) byCode.set(r.reason_code, (byCode.get(r.reason_code) ?? 0) + 1);
+
+  // A run's school_slug is one slug, a comma list, or "all"; only runs for exactly one school can be charged to it.
+  const sumRuns = (runs: QaData["allRuns"]) => ({
+    runs: runs.length,
+    cost: runs.reduce((a, r) => a + (r.cost_usd ?? 0), 0),
+    tokensIn: runs.reduce((a, r) => a + r.tokens_in, 0),
+    tokensOut: runs.reduce((a, r) => a + r.tokens_out, 0),
+  });
+  const costRows = [
+    ...schools.map((sc) => ({ label: sc.name, ...sumRuns(qa.allRuns.filter((r) => r.school_slug === sc.slug)) })),
+    { label: "All schools together (or school not recorded)", ...sumRuns(qa.allRuns.filter((r) => !r.school_slug || !schools.some((sc) => sc.slug === r.school_slug))) },
+  ];
 
   const run = qa.lastRun;
   const verified = num(run?.verified);
@@ -78,6 +105,7 @@ export default async function QaPage() {
             <th>Source</th>
             <th>Stage</th>
             <th>Fetch state</th>
+            <th>Note</th>
             <th>HTTP status</th>
             <th>Last fetched</th>
             <th>Last checked</th>
@@ -88,7 +116,8 @@ export default async function QaPage() {
             <tr key={String(s.slug)}>
               <td>{String(s.slug)}</td>
               <td>{String(s.stage)}</td>
-              <td>{s.last_fetched_at == null && s.last_status == null ? "Never fetched (blocked by robots.txt or not yet run; the database does not say which)" : "Fetched"}</td>
+              <td>{fetchState(s.last_result)}</td>
+              <td>{String(s.last_note ?? "")}</td>
               <td>{String(s.last_status ?? NA)}</td>
               <td>{String(s.last_fetched_at ?? "never")}</td>
               <td>{String(s.last_checked_at ?? "never")}</td>
@@ -124,9 +153,31 @@ export default async function QaPage() {
       )}
 
       <h2>Per school</h2>
-      <p>
-        Cost per school is not recorded: the pipeline stores tokens and cost per run, not per school. Last run total: {usd(run?.cost_usd)}.
-      </p>
+      <h3>Cost per school (published runs)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Run scope</th>
+            <th>Runs</th>
+            <th>Cost</th>
+            <th>Tokens in</th>
+            <th>Tokens out</th>
+          </tr>
+        </thead>
+        <tbody>
+          {costRows.map((r) => (
+            <tr key={r.label}>
+              <td>{r.label}</td>
+              <td>{r.runs}</td>
+              <td>{usd(r.cost)}</td>
+              <td>{r.tokensIn}</td>
+              <td>{r.tokensOut}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p>Runs that covered every school at once are listed separately; their cost cannot be split by school.</p>
+      <h3>Personalization meter</h3>
       <table>
         <thead>
           <tr>
