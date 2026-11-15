@@ -1,0 +1,8 @@
+# The 4 demo schools. UNVERIFIED: name, kind, district, county and feeder come from plan.md section 2; the cities
+# of the two colleges and Garden City are from general knowledge, not a source. Every value, and every null, must
+# be checked against the school's official site (and verified_at set) before this file is seeded to the database.
+schools:
+  - {slug: stony-brook-university, kind: college, name: Stony Brook University, district: null, county: Suffolk, city: Stony Brook, zip: null, lat: null, lon: null, grade_low: null, grade_high: null, feeder_high_school: null, source_url: null, verified_at: null}
+  - {slug: hofstra-university, kind: college, name: Hofstra University, district: null, county: Nassau, city: Hempstead, zip: null, lat: null, lon: null, grade_low: null, grade_high: null, feeder_high_school: null, source_url: null, verified_at: null}
+  - {slug: gelinas-middle-school, kind: middle_school, name: Paul J. Gelinas Middle School, district: Three Village CSD, county: Suffolk, city: Setauket, zip: null, lat: null, lon: null, grade_low: null, grade_high: null, feeder_high_school: Ward Melville High School, source_url: null, verified_at: null}
+  - {slug: garden-city-middle-school, kind: middle_school, name: Garden City Middle School, district: Garden City Public Schools, county: Nassau, city: Garden City, zip: null, lat: null, lon: null, grade_low: null, grade_high: null, feeder_high_school: Garden City High School, source_url: null, verified_at: null}

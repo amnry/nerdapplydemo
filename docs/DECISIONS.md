@@ -13,6 +13,19 @@ Running log of choices the plan left open. Each entry: decision, then reason.
 - **npm audit.** 1 high, 1 moderate, both from `postcss` bundled inside `next`. `npm audit fix --force` would change the Next version; not done. Does not affect a read-only demo with no user input beyond a school name.
 - **Vercel CLI.** Run through `npx vercel`, not installed globally.
 
+## Gate 2
+
+- **Extraction prompt is a stub** (presenter's instruction). `extract.py` has `SYSTEM_PROMPT = None` and `USER_TEMPLATE = None` and raises `ExtractionNotConfigured`; it never calls the API. `llm.py` is written but has never made a live call.
+- **Gate 2 is NOT met.** Its gate says `--dry-run` prints verified records with quotes; with the stub there are zero records. Verify, dedupe, overrides, publish and report are proven only by offline tests on TEST ONLY fixtures and by a real fetch of 8 pages.
+- **Page hash is over the visible text, not the raw HTML**, so rotating tokens or timestamps in markup do not defeat the skip. The raw HTML is still saved under that hash.
+- **Duplicate pages:** two sources can resolve to one page (`sbu-admitted-freshmen` and `sbu-first-year-admitted` have the same hash). The run extracts the page once and notes the duplicate.
+- **Page cap** is per run (`--max-pages`, default 15). The Stony Brook dry run was executed twice (8 pages each), 16 fetches in total; no LLM calls.
+- **Schools are not seeded.** `schools.yaml` holds unverified values (cities for the colleges and Garden City are from general knowledge). Nothing writes it to the database until each value is checked against an official site.
+- **Known gap, injection:** Q1 proves a quote is on the page, not that it is data rather than an instruction. A model that quotes the injected sentence itself (`xfail` test in `test_verify.py`) would pass every gate. Defence belongs in the extraction prompt, and in the manual audit.
+- **Q1 value check** compares each extracted date, cost and grade bound with its own quote (month and day must appear; a year in the quote must match). A field with no quote is nulled with a logged note (status becomes `unknown`); `action_type` with no quote goes to `needs_review`.
+- **Not built yet:** marking records `closed` when they vanish from a page that still fetches; seeding the `schools` table (`--publish` upserts `sources` only); cost per school in the report.
+- **Never run:** `--publish`, so `SupabaseStore.write` and the `pipeline_runs`/`rejections` inserts are untested. Only the read path was exercised.
+
 ## Proposed for later gates (accepted unless changed)
 
 - Gates Q1, Q2, Q6 reject. Q5 and Q7 send to `needs_review`. Q3 and Q4 change fields and still log their reason code.

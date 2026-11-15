@@ -1,0 +1,6 @@
+# Human corrections, keyed by dedupe key (owner|title|cycle). They survive every re-run and are auditable.
+# Each entry: key, action (approve | reject | edit), reviewer, date, note, and for edit a `fields` map.
+# Example (do not uncomment without a real key):
+#   - {key: "stony-brook-university|admitted-seawolf-day|ay-2026-27", action: edit, reviewer: <name>,
+#      date: 2026-11-15, note: "date confirmed on page", fields: {deadline: "2027-04-10"}}
+overrides: []
