@@ -120,6 +120,15 @@ def seed_schools(store, schools: list) -> dict:
     return {"seeded": len(schools)}
 
 
+def group_by_keys(rows: list) -> list:
+    """Split rows into batches that share the same keys. PostgREST fills a missing key with null in a mixed batch,
+    which on an upsert would erase a stored value (for example a last good page hash after a failed fetch)."""
+    groups: dict = {}
+    for r in rows:
+        groups.setdefault(tuple(sorted(r)), []).append(r)
+    return list(groups.values())
+
+
 class SupabaseStore:
     """Thin PostgREST client using the service key (server and pipeline only)."""
     def __init__(self, url: str, key: str):
@@ -138,6 +147,13 @@ class SupabaseStore:
         if rows:
             self._req("POST", f"/{table}?on_conflict={conflict}", json=rows,
                       headers={"Prefer": "resolution=merge-duplicates"})
+
+    def upsert_groups(self, table: str, rows: list, conflict: str) -> None:
+        for batch in group_by_keys(rows):
+            self.upsert(table, batch, conflict)
+
+    def patch(self, table: str, query: str, data: dict) -> None:
+        self._req("PATCH", f"/{table}?{query}", json=data)
 
     def existing(self) -> dict:
         slugs = {v: k for k, v in self._source_ids().items()}

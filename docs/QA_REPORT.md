@@ -1,6 +1,6 @@
 # QA Report
 
-Generated: 2026-11-15T06:09:34+00:00  |  Mode: publish
+Generated: 2026-11-15T06:37:35+00:00  |  Mode: publish
 
 ## Run numbers
 
@@ -12,7 +12,7 @@ Generated: 2026-11-15T06:09:34+00:00  |  Mode: publish
 | Verified | 30 |
 | Needs review | 23 |
 | Rejected | 2 |
-| Rows written to database | {'inserted': 0, 'updated': 0, 'unchanged': 53} |
+| Rows written to database | {'inserted': 0, 'updated': 2, 'unchanged': 51} |
 | Dropped (pre_admission: about applying for admission) | 0 |
 | Manual records (quotes not machine-checked if page blocked) | 0 |
 | Tokens in / out | 0 / 0 |
@@ -63,7 +63,8 @@ Generated: 2026-11-15T06:09:34+00:00  |  Mode: publish
 - county / needs_review: 13
 - county / verified: 1
 - district / needs_review: 10
-- district / verified: 5
+- district / rejected: 2
+- district / verified: 3
 - region / rejected: 8
 - region / verified: 16
 
@@ -77,6 +78,8 @@ Generated: 2026-11-15T06:09:34+00:00  |  Mode: publish
 - cold-spring-harbor-laboratory-dna-learning-center|fun-with-dna-on-demand|none
 - cold-spring-harbor-laboratory-dna-learning-center|genome-science-on-demand|none
 - cold-spring-harbor-laboratory-dna-learning-center|on-demand-fun-with-dna|none
+- emma-s-clark-memorial-library|summer-reading-challenge-2026|summer-reading-challenge-2026
+- emma-s-clark-memorial-library|time-with-a-tech|none
 
 ## Overrides with no matching record
 

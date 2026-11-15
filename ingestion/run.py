@@ -14,6 +14,19 @@ from .report import run_row, write_report
 from .verify import verify
 
 MANUAL_META = ("source", "entered_by", "entered_on")
+SOURCE_COLS = ("url", "owner", "stage", "scope_type", "scope_value", "lat", "lon")
+
+
+def status_row(src: dict, entry: dict, f, now: str) -> dict:
+    """What the sources table records about one check: result, HTTP status, note, time, and (only when a page was
+    actually read) its hash and fetch time. A failed check never erases the last good hash."""
+    blocked = entry["result"] == "blocked_by_robots" or entry["note"].startswith("robots_disallowed")
+    row = {"slug": src["id"], **{k: src[k] for k in SOURCE_COLS}, "last_checked_at": now,
+           "last_result": "blocked_by_robots" if blocked else entry["result"],
+           "last_note": entry["note"][:300] or None, "last_status": (f.status or None) if f else None}
+    if f is not None and f.sha:
+        row.update(last_hash=f.sha, last_fetched_at=now)
+    return row
 
 
 def schools_of(src: dict) -> list:
@@ -30,9 +43,10 @@ def run(argv=None) -> dict:
     ap.add_argument("--all", action="store_true", help="with --publish: confirm you mean every source in sources.yaml")
     ap.add_argument("--school", action="append", help="only sources for this school slug (repeatable)")
     ap.add_argument("--max-pages", type=int, default=40, help="cap on pages fetched this run")
+    ap.add_argument("--refresh-sources", action="store_true", help="fetch the selected sources and record their status; no extraction, no records")
     args = ap.parse_args(argv)
-    if args.publish and not (args.school or args.all):
-        ap.error("--publish needs --school <slug> (repeatable) or --all; a bare --publish would publish every source")
+    if (args.publish or args.refresh_sources) and not (args.school or args.all):
+        ap.error("--publish and --refresh-sources need --school <slug> (repeatable) or --all; a bare run would touch every source")
     load_env()
     if args.seed_schools:
         schools = yaml.safe_load((ROOT / "ingestion" / "schools.yaml").read_text())["schools"]
@@ -47,7 +61,8 @@ def run(argv=None) -> dict:
     sources = [s for s in all_sources if (not args.source or s["id"] == args.source)
                and (not args.school or any(sc in args.school for sc in schools_of(s)))]
     stats = {"started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-             "mode": "publish" if args.publish else "dry-run", "sources_attempted": 0, "sources_ok": 0,
+             "mode": "publish" if args.publish else "dry-run", "school_slug": "all" if args.all else ",".join(args.school or []),
+             "sources_attempted": 0, "sources_ok": 0,
              "extracted": 0, "verified": 0, "needs_review": 0, "rejected": 0, "manual": 0, "tokens_in": 0,
              "tokens_out": 0, "rejections_by_code": {}, "per_source": [], "rejections": [], "dropped_pre_admission": [], "records": []}
     rows: dict = {}
@@ -70,6 +85,7 @@ def run(argv=None) -> dict:
         rows[row["dedupe_key"]] = row
 
     fetched = 0
+    fetches: dict = {}   # source id -> FetchResult, for the sources table
     with new_client() as client:
         for src in sources:
             stats["sources_attempted"] += 1
@@ -85,12 +101,15 @@ def run(argv=None) -> dict:
                 continue
             fetched += 1
             f = fetch_source(src, client)
+            fetches[src["id"]] = f
             entry["tokens_est"] = f.tokens_est
             if f.error or f.skipped:
                 entry.update(result="error" if f.error else "skipped", note=f.error or f.skipped)
                 continue
             stats["sources_ok"] += 1
             pages[src["id"]] = (f.text, f.final_url)
+            if args.refresh_sources:
+                continue
             if f.sha in seen:  # same page reached by two registered URLs: extract it once
                 entry["note"] = f"duplicate page of {seen[f.sha]}; not re-extracted"
                 continue
@@ -108,20 +127,30 @@ def run(argv=None) -> dict:
             for rec in recs:
                 stats["extracted"] += 1
                 handle(rec, src, f.text, f.final_url, client)
-        manual = (yaml.safe_load((ROOT / "ingestion" / "manual_records.yaml").read_text()) or {}).get("records") or []
+        manual = [] if args.refresh_sources else (yaml.safe_load((ROOT / "ingestion" / "manual_records.yaml").read_text()) or {}).get("records") or []
         by_id = {s["id"]: s for s in all_sources}
         for m in manual:  # hand-entered records: same gates, but no page text when the page was blocked
             text, final_url = pages.get(m["source"], (None, None))
             handle({k: v for k, v in m.items() if k not in MANUAL_META}, by_id[m["source"]], text, final_url, client,
                    "manual", f"manual entry by {m['entered_by']} on {m['entered_on']}")
+    now = datetime.now(timezone.utc).isoformat()
+    by_src = {s["id"]: s for s in sources}
+    status_rows = [status_row(by_src[e["id"]], e, fetches.get(e["id"]), now) for e in stats["per_source"] if e["note"] != "page cap reached"]
+    if args.refresh_sources:
+        SupabaseStore(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"]).upsert_groups("sources", status_rows, "slug")
+        summary = {}
+        for r in status_rows:
+            summary[r["last_result"]] = summary.get(r["last_result"], 0) + 1
+        print(f"refresh-sources: {len(status_rows)} sources recorded {summary}")
+        return stats
     rows, unmatched = apply_overrides(rows, load_overrides())
     stats["scoped"] = bool(args.school or args.source)  # an override for a school outside this run cannot match
     stats["unmatched_overrides"] = [] if stats["scoped"] else unmatched
     stats["rejected_by_override"] = sorted(k for k, r in rows.items() if r["verification_state"] == "rejected")
     if args.publish:
         store = SupabaseStore(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
-        store.upsert("sources", [{"slug": s["id"], **{k: s[k] for k in ("url", "owner", "stage", "scope_type", "scope_value", "lat", "lon")}}
-                                 for s in all_sources], "slug")  # opportunities reference sources by id
+        store.upsert("sources", [{"slug": s["id"], **{k: s[k] for k in SOURCE_COLS}} for s in all_sources], "slug")  # rows reference sources by id
+        store.upsert_groups("sources", status_rows, "slug")  # fetch status, time and robots blocks for the sources this run checked
         stats["publish"] = publish_rows(store, list(rows.values()))
         run_id = store.insert("pipeline_runs", run_row(stats, datetime.now(timezone.utc).isoformat()))["id"]
         sid = store._source_ids()

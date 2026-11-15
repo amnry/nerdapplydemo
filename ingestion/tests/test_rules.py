@@ -80,3 +80,48 @@ def test_k12_ny_us_district_domains_are_not_collapsed_to_ny_us():
     hosts = allowed_hosts({"url": "https://www.gardencity.k12.ny.us/scope"})
     assert hosts == ["gardencity.k12.ny.us"] and not host_ok("https://other.k12.ny.us/", hosts)
     assert allowed_hosts({"url": "https://www.stonybrook.edu/x"}) == ["stonybrook.edu"]
+
+
+def _src():
+    return {"id": "s1", "url": "https://x.edu/a", "owner": "X", "stage": "grade_8", "scope_type": "county", "scope_value": "Nassau", "lat": None, "lon": None}
+
+
+def test_status_row_ok_keeps_hash_and_fetch_time():
+    from ingestion.fetch import FetchResult
+    from ingestion.run import status_row
+    f = FetchResult(source_id="s1", url="u", status=200, sha="abc", text="t")
+    r = status_row(_src(), {"result": "ok", "note": ""}, f, "2026-11-15T00:00:00+00:00")
+    assert (r["last_status"], r["last_result"], r["last_hash"], r["last_fetched_at"]) == (200, "ok", "abc", "2026-11-15T00:00:00+00:00")
+
+
+def test_status_row_for_a_404_records_status_but_never_a_hash():
+    from ingestion.fetch import FetchResult
+    from ingestion.run import status_row
+    r = status_row(_src(), {"result": "error", "note": "http_404"}, FetchResult(source_id="s1", url="u", status=404, error="http_404"), "t")
+    assert r["last_status"] == 404 and r["last_result"] == "error" and "last_hash" not in r and "last_fetched_at" not in r
+
+
+def test_status_row_records_robots_blocks_both_ways():
+    from ingestion.fetch import FetchResult
+    from ingestion.run import status_row
+    flagged = status_row(_src(), {"result": "blocked_by_robots", "note": "robots.txt disallows this crawler"}, None, "t")
+    live = status_row(_src(), {"result": "skipped", "note": "robots_disallowed"}, FetchResult(source_id="s1", url="u", skipped="robots_disallowed"), "t")
+    assert flagged["last_result"] == live["last_result"] == "blocked_by_robots" and flagged["last_status"] is None
+
+
+def test_rows_with_different_keys_are_never_sent_in_one_batch():
+    from ingestion.publish import group_by_keys
+    ok, failed = {"slug": "a", "last_hash": "h"}, {"slug": "b"}
+    assert sorted(len(g) for g in group_by_keys([ok, failed, {"slug": "c", "last_hash": "i"}])) == [1, 2]
+
+
+def test_run_row_carries_school_slug_and_cost():
+    from ingestion.report import run_row
+    stats = {k: 0 for k in ("sources_attempted", "sources_ok", "extracted", "verified", "needs_review", "rejected", "tokens_in", "tokens_out")}
+    row = run_row({**stats, "started_at": "t", "school_slug": "gelinas-middle-school", "tokens_in": 1000, "tokens_out": 100}, "t2")
+    assert row["school_slug"] == "gelinas-middle-school" and "cost_usd" in row
+
+
+def test_refresh_sources_is_refused_without_school_or_all():
+    with pytest.raises(SystemExit):
+        run(["--refresh-sources"])

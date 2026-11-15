@@ -91,3 +91,36 @@ overrides:
     reviewer: presenter
     date: 2026-11-15
     note: "For community college students; not for middle school students."
+  - key: "emma-s-clark-memorial-library|summer-reading-challenge-2026|summer-reading-challenge-2026"
+    action: reject
+    reviewer: presenter
+    date: 2026-11-15
+    note: "Last summer's challenge (2026); no dated quote lets the stale-cycle gate close it."
+  - key: "emma-s-clark-memorial-library|time-with-a-tech|none"
+    action: reject
+    reviewer: presenter
+    date: 2026-11-15
+    note: "Tech help for patrons, not a teen opportunity."
+  - key: "hofstra-university|extended-hours-program|none"
+    action: reject
+    reviewer: presenter
+    date: 2026-11-15
+    note: "Childcare add-on to day camps, not an opportunity."
+  - key: "hofstra-university|research-assistants|none"
+    action: edit
+    reviewer: presenter
+    date: 2026-11-15
+    note: "Presenter: enrollment is current. Original page wording kept in note."
+    fields: {"requires": {"enrollment": "current", "note": "Page: qualified Honors College students can collaborate with faculty on research projects."}}
+  - key: "hofstra-university|conference-funding|none"
+    action: edit
+    reviewer: presenter
+    date: 2026-11-15
+    note: "Presenter: enrollment is current."
+    fields: {"requires": {"enrollment": "current"}}
+  - key: "cold-spring-harbor-laboratory-dna-learning-center|world-of-enzymes|summer-2026"
+    action: edit
+    reviewer: presenter
+    date: 2026-11-15
+    note: "Grade quote was cut at a line break. Page: 'entering grade 8 or Fun With DNA alumni entering grade 7'. Grades stay 8; the grade 7 path is alumni only."
+    fields: {"grades_allowed": [8], "requires": {"note": "Also open to Fun With DNA alumni entering grade 7."}, "evidence": [{"field": "title", "quote": "World of Enzymes"}, {"field": "grades_allowed", "quote": "entering grade 8 or Fun With DNA alumni entering grade 7"}, {"field": "cycle_label", "quote": "SUMMER 2026 Calendar for Dolan DNA Learning Center, Cold Spring Harbor"}, {"field": "cost_usd", "quote": "$600 | n/a"}, {"field": "action_type", "quote": "Complete camp applications to ENROLL all family members under that account."}]}

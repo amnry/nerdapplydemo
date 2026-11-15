@@ -54,4 +54,5 @@ def run_row(stats: dict, finished_at: str) -> dict:
     """pipeline_runs insert payload (publish mode only)."""
     cost = llm.cost_usd(stats["tokens_in"], stats["tokens_out"])
     keys = ("sources_attempted", "sources_ok", "extracted", "verified", "needs_review", "rejected", "tokens_in", "tokens_out")
-    return {**{k: stats[k] for k in keys}, "started_at": stats["started_at"], "finished_at": finished_at, "cost_usd": cost}
+    return {**{k: stats[k] for k in keys}, "started_at": stats["started_at"], "finished_at": finished_at, "cost_usd": cost,
+            "school_slug": stats["school_slug"]}
