@@ -168,6 +168,13 @@ export default async function GuidePage({
         </section>
       )}
 
+      {items.length === 0 && (
+        <section>
+          <h2>No verified opportunities yet</h2>
+          <p>We have no verified opportunities for {school.name} that match this stage. Nothing is shown rather than guessing.</p>
+        </section>
+      )}
+
       {BUCKET_ORDER.map((b) => {
         const inBucket = rest.filter((i) => i.bucket === b);
         if (inBucket.length === 0) return null;

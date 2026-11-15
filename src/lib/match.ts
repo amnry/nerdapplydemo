@@ -176,7 +176,7 @@ export function matchGuide(school: School, opps: Opportunity[], opts: MatchOptio
       action: e.askSchool ? "ask_school" : opp.action_type,
       afterEnroll: e.afterEnroll,
       date: date && confident ? date : null,
-      dateNote: date && confident ? date : date ? `date not confirmed (${opp.date_confidence}); listed ${date}` : "date not published",
+      dateNote: date && confident ? date : opp.date_confidence === "year_unknown" ? "date listed without a year, confirm with the school" : "date not published",
       distanceMiles: miles,
     });
   }

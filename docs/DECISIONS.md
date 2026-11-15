@@ -38,3 +38,9 @@ Running log of choices the plan left open. Each entry: decision, then reason.
 - `requires` JSON: `{"districts": [...], "admit_program": "...", "enrollment": "current"}`, all optional.
 - Entering grade 9 applies to programs starting on or after 2027-06-01 or labelled summer 2027.
 - Rows that vanish from a page that still fetches are marked `closed` with a review note, never deleted.
+
+## Gates 4 and 5
+
+- **Date wording.** A date quoted without a year prints "date listed without a year, confirm with the school" and is bucketed Plan ahead. Only a row with no date prints "date not published". This refines plan section 10 case 5, which says "date not published" for the year-less case.
+- **Test runner.** vitest added as a dev dependency (plan section 10 names it); `npm test` runs `tests/match.test.ts`. Cases use synthetic rows, not real rows, so gate 4 stays unticked.
+- **Empty guide.** The guide page prints an explicit "No verified opportunities yet" section when nothing matches.
