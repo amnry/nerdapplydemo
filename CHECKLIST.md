@@ -4,8 +4,8 @@ Source: `plan.md` section 12. Tick a box only when its gate actually runs and pa
 
 ## Build order
 
-- [ ] **1. Scaffold.** Next.js scaffold, Supabase project, migration, deploy a blank page to Vercel.
-  - Gate: the preview URL opens in incognito on a phone.
+- [x] **1. Scaffold.** Next.js scaffold, Supabase project, migration, deploy a blank page to Vercel.
+  - Gate: the preview URL opens in incognito on a phone. (Verified by presenter on phone, Nov 14.)
 - [ ] **2. One school end to end.** Seed the 4 schools from official sources. Build `sources.yaml` for ONE school end to end. Pipeline stages 1 to 6.
   - Gate: `--dry-run` prints verified records with quotes for that one school.
 - [ ] **3. All schools.** Add sources for the other 3 schools. Run `--publish` twice.
