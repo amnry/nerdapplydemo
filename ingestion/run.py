@@ -6,10 +6,10 @@ from datetime import datetime, timezone
 
 import yaml
 
-from .extract import apply_pre_admission, extract
+from .extract import apply_pre_admission, extract, normalize_districts
 from .fetch import check_url, fetch_source, new_client, robots_ok
 from .models import ROOT, load_env
-from .publish import SupabaseStore, apply_overrides, build_row, load_overrides, publish_rows, seed_schools
+from .publish import SupabaseStore, apply_overrides, build_row, check_scopes, load_overrides, load_schools, publish_rows, seed_schools
 from .report import run_row, write_report
 from .verify import verify
 
@@ -22,9 +22,12 @@ def run(argv=None) -> dict:
     ap.add_argument("--dry-run", action="store_true", help="explicit dry run (the default)")
     ap.add_argument("--seed-schools", action="store_true", help="upsert ingestion/schools.yaml into the database, then exit")
     ap.add_argument("--source", help="only this source id")
+    ap.add_argument("--all", action="store_true", help="with --publish: confirm you mean every source in sources.yaml")
     ap.add_argument("--school", action="append", help="only sources for this school slug (repeatable)")
     ap.add_argument("--max-pages", type=int, default=15, help="cap on pages fetched this run")
     args = ap.parse_args(argv)
+    if args.publish and not (args.school or args.all):
+        ap.error("--publish needs --school <slug> (repeatable) or --all; a bare --publish would publish every source")
     load_env()
     if args.seed_schools:
         schools = yaml.safe_load((ROOT / "ingestion" / "schools.yaml").read_text())["schools"]
@@ -32,6 +35,10 @@ def run(argv=None) -> dict:
         print(f"schools: {result['seeded']} upserted")
         return result
     all_sources = yaml.safe_load((ROOT / "ingestion" / "sources.yaml").read_text())["sources"]
+    schools = load_schools()
+    problems = check_scopes(all_sources, schools)
+    if problems:  # an inconsistent scope would publish rows no school can ever match
+        raise SystemExit("scope check failed:\n  " + "\n  ".join(problems))
     sources = [s for s in all_sources if (not args.source or s["id"] == args.source)
                and (not args.school or s["school"] in args.school)]
     stats = {"started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -89,6 +96,7 @@ def run(argv=None) -> dict:
             stats["tokens_in"] += usage["tokens_in"]
             stats["tokens_out"] += usage["tokens_out"]
             recs, dropped = apply_pre_admission(recs, src)
+            recs = normalize_districts(recs, schools)
             stats["dropped_pre_admission"] += [{"source": src["id"], "title": t} for t in dropped]
             for rec in recs:
                 stats["extracted"] += 1

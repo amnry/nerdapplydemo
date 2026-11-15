@@ -15,6 +15,7 @@ export interface School {
   kind: "middle_school" | "college";
   name: string;
   district: string | null;
+  district_slug: string | null; // stable key that district-scoped rows and requires.districts match on
   county: string | null;
   city: string | null;
   zip: string | null;

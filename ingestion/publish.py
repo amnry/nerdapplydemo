@@ -89,6 +89,28 @@ def publish_rows(store, rows: list) -> dict:
     return {"inserted": len(ins), "updated": len(upd), "unchanged": len(rows) - len(ins) - len(upd)}
 
 
+def load_schools(path=ROOT / "ingestion" / "schools.yaml") -> list:
+    return yaml.safe_load(path.read_text())["schools"]
+
+
+def slugify(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+
+def check_scopes(sources: list, schools: list) -> list:
+    """Problems that would make a source's rows unmatchable: a district scope_value that is no school's district_slug,
+    or a school/institution scope_value that is no school's slug. Empty list means consistent."""
+    district_slugs = {s["district_slug"] for s in schools if s.get("district_slug")}
+    school_slugs = {s["slug"] for s in schools}
+    bad = []
+    for src in sources:
+        if src["scope_type"] == "district" and src["scope_value"] not in district_slugs:
+            bad.append(f"{src['id']}: district scope_value '{src['scope_value']}' is not a district_slug in schools.yaml")
+        if src["scope_type"] in ("school", "institution") and src["scope_value"] not in school_slugs:
+            bad.append(f"{src['id']}: {src['scope_type']} scope_value '{src['scope_value']}' is not a school slug")
+    return bad
+
+
 def seed_schools(store, schools: list) -> dict:
     """Upsert the demo schools by slug. Refuses a row with no coordinates or no verified_at, so nothing unconfirmed is seeded."""
     bad = [s["slug"] for s in schools if s.get("lat") is None or s.get("lon") is None or not s.get("verified_at")]

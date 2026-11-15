@@ -67,3 +67,11 @@ Running log of choices the plan left open. Each entry: decision, then reason.
 - **Six URECA needs_review records left alone** for the presenter's audit; they are stored with `verification_state=needs_review` and are not shown in guides.
 - **Scope mistake, run 1:** `--publish` with no `--school` runs every source in `sources.yaml`. Run 1 therefore also published 17 Hofstra rows (16 verified, 1 needs_review) from sources added by another session, costing $0.1122. They were not requested and were not deleted. Run 2 was scoped with `--school stony-brook-university`.
 - **Publish results:** run 1 wrote 39 rows (22 Stony Brook, 17 Hofstra); run 2 (Stony Brook) wrote 0: all 22 rows keep run 1's `last_verified_at`. Total live LLM spend: $0.5755.
+
+## District matching and the publish guard (Nov 15)
+
+- **Bug:** the pipeline stores district scope as a slug (`three-village-csd`) but `match.ts` compared it with the school's display name, so a district row could never match. No real rows were affected yet: all 39 published rows are `institution` scope.
+- **Fix:** `schools.district_slug` (migration 003, applied; seeded for the two middle schools, null for colleges). `match.ts` matches district scope **and** `requires.districts` on `district_slug`; the display name is only used in messages. Tests on both sides, including one that a display name must not match.
+- **Pipeline side:** `check_scopes` runs at the start of every run and stops it if a district `scope_value` is not a `district_slug`, or a school/institution `scope_value` is not a school slug. `normalize_districts` rewrites `requires.districts` names from a page to district slugs; a name that matches no known district keeps its own slug form, so that row is hidden for our schools (a missed opportunity, never a wrong one). Known limit: a page that abbreviates a district in a way we have no alias for (for example just "Three Village") will not map; add an alias when it shows up in the QA report.
+- **Guard:** `--publish` now exits with an error unless `--school <slug>` or `--all` is given (a lone `--source` is refused too). Dry runs are unaffected.
+- **`sources.yaml`** with the Hofstra and Garden City entries is committed. The 17 Hofstra rows published by mistake stay, by the presenter's decision.

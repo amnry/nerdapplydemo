@@ -8,16 +8,16 @@ import type { Opportunity, School } from "../src/lib/types";
 const TODAY = "2026-11-14";
 
 const threeVillage: School = {
-  id: 1, slug: "gelinas", kind: "middle_school", name: "Paul J. Gelinas Middle School", district: "Three Village CSD",
+  id: 1, slug: "gelinas", kind: "middle_school", name: "Paul J. Gelinas Middle School", district: "Three Village Central School District", district_slug: "three-village-csd",
   county: "Suffolk", city: "Setauket", zip: null, lat: 40.93, lon: -73.1, grade_low: 6, grade_high: 8,
   feeder_high_school: "Ward Melville High School", source_url: null, verified_at: null,
 };
 const gardenCity: School = {
-  ...threeVillage, id: 2, slug: "garden-city-ms", name: "Garden City Middle School", district: "Garden City UFSD",
+  ...threeVillage, id: 2, slug: "garden-city-ms", name: "Garden City Middle School", district: "Garden City Public Schools", district_slug: "garden-city-public-schools",
   county: "Nassau", city: "Garden City", lat: 40.72, lon: -73.64, feeder_high_school: "Garden City High School",
 };
 const stonyBrook: School = {
-  ...threeVillage, id: 3, slug: "stony-brook", kind: "college", name: "Stony Brook University", district: null,
+  ...threeVillage, id: 3, slug: "stony-brook", kind: "college", name: "Stony Brook University", district: null, district_slug: null,
   grade_low: null, grade_high: null, feeder_high_school: null,
 };
 const hofstra: School = { ...stonyBrook, id: 4, slug: "hofstra", name: "Hofstra University", county: "Nassau", city: "Hempstead" };
@@ -51,11 +51,17 @@ describe("golden cases", () => {
   });
 
   it("2. district-restricted program: present for a listed district, absent for the other school", () => {
-    const row = opp({ scope_type: "district", scope_value: "Three Village CSD", requires: { districts: ["Three Village CSD"] } });
+    const row = opp({ scope_type: "district", scope_value: "three-village-csd", requires: { districts: ["three-village-csd"] } });
     expect(guide(threeVillage, [row]).map((i) => i.opp.id)).toEqual([row.id]);
     const other = guide(gardenCity, [row]);
     expect(other.every((i) => i.bucket === "Confirm first")).toBe(true); // absent (length 0) also satisfies this
     expect(other).toHaveLength(0);
+  });
+
+  it("2c. district scope matches on district_slug, never on the display name", () => {
+    const byName = opp({ scope_type: "district", scope_value: "Three Village Central School District" });
+    const bySlug = opp({ scope_type: "district", scope_value: "three-village-csd" });
+    expect(guide(threeVillage, [byName, bySlug]).map((i) => i.opp.id)).toEqual([bySlug.id]);
   });
 
   it("2b. unextractable district list is Confirm first, never eligible", () => {
@@ -104,8 +110,8 @@ describe("golden cases", () => {
   it("7. switching middle schools changes the school and district rows", () => {
     const tvSchool = opp({ scope_type: "school", scope_value: "gelinas", grades_allowed: null });
     const gcSchool = opp({ scope_type: "school", scope_value: "garden-city-ms", grades_allowed: null });
-    const tvDistrict = opp({ scope_type: "district", scope_value: "Three Village CSD" });
-    const gcDistrict = opp({ scope_type: "district", scope_value: "Garden City UFSD" });
+    const tvDistrict = opp({ scope_type: "district", scope_value: "three-village-csd" });
+    const gcDistrict = opp({ scope_type: "district", scope_value: "garden-city-public-schools" });
     const rows = [tvSchool, gcSchool, tvDistrict, gcDistrict];
     const ids = (s: School) => guide(s, rows).map((i) => i.opp.id).sort();
     expect(ids(threeVillage)).toEqual([tvSchool.id, tvDistrict.id].sort());

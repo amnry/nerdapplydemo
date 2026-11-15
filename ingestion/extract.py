@@ -2,6 +2,7 @@
 Exists so the model only proposes records (with verbatim quotes) and every later stage can replay them for free."""
 import hashlib
 import json
+import re
 
 from . import llm
 from .models import DATA, RECORD_SCHEMA
@@ -101,3 +102,22 @@ def apply_pre_admission(records: list, source: dict) -> tuple:
         req["note"] = "Requested with the admission application; after admission, ask the office."
         kept.append({**rec, "action_type": "ask_school", "requires": req})
     return kept, dropped
+
+
+def normalize_districts(records: list, schools: list) -> list:
+    """Rewrite requires.districts (names as a page writes them) to district slugs, so they compare with schools.district_slug.
+    A name that matches no known district keeps its own slug form: it can never equal a school's district_slug, so
+    the row is ineligible there (hidden, never wrongly shown)."""
+    known = {}
+    for sc in schools:
+        if sc.get("district_slug"):
+            known[sc["district_slug"]] = sc["district_slug"]
+            known[re.sub(r"[^a-z0-9]+", "-", (sc.get("district") or "").lower()).strip("-")] = sc["district_slug"]
+    out = []
+    for rec in records:
+        req = dict(rec.get("requires") or {})
+        if req.get("districts"):
+            slugs = [known.get(re.sub(r"[^a-z0-9]+", "-", d.lower()).strip("-"), re.sub(r"[^a-z0-9]+", "-", d.lower()).strip("-")) for d in req["districts"]]
+            req["districts"] = list(dict.fromkeys(slugs))
+        out.append({**rec, "requires": req})
+    return out

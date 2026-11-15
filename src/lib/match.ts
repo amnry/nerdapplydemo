@@ -37,7 +37,7 @@ export function inScope(school: School, opp: Opportunity): boolean {
     case "institution":
       return v === norm(school.slug);
     case "district":
-      return school.district != null && v === norm(school.district);
+      return school.district_slug != null && v === norm(school.district_slug);
     case "county":
       return school.county != null && v === norm(school.county);
     case "region":
@@ -89,7 +89,7 @@ export function eligibility(school: School, opp: Opportunity): Eligible {
     if (req.districts !== undefined) {
       if (!Array.isArray(req.districts) || req.districts.length === 0) {
         outcomes.push({ state: "unknown", reason: "District restriction exists but the list was not extractable" });
-      } else if (school.district && req.districts.some((d) => norm(d) === norm(school.district))) {
+      } else if (school.district_slug && req.districts.some((d) => norm(d) === norm(school.district_slug))) {
         outcomes.push({ state: "eligible", reason: `District ${school.district} is in the listed set` });
       } else {
         outcomes.push({ state: "ineligible", reason: `District ${school.district ?? "unknown"} is not in ${req.districts.join(", ")}` });

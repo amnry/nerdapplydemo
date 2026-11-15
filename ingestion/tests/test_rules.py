@@ -1,7 +1,12 @@
 """Offline tests for source-level rules: pre_admission handling and the source_url fallback for action_url.
 Exists because these rules decide what an admitted student is told to do, and must not drift silently."""
-from ingestion.extract import apply_pre_admission
-from ingestion.publish import build_row
+import pytest
+import yaml
+
+from ingestion.extract import apply_pre_admission, normalize_districts
+from ingestion.models import ROOT
+from ingestion.publish import build_row, check_scopes, load_schools
+from ingestion.run import run
 from .test_idempotency import SOURCE
 from .test_verify import GOOD
 
@@ -28,3 +33,34 @@ def test_action_url_falls_back_to_source_url():
 def test_manual_rows_are_marked_manual_with_their_note():
     row = build_row(GOOD, SOURCE, "verified", method="manual", note="manual entry by r on 2026-11-15")
     assert row["extraction_method"] == "manual" and row["review_note"].startswith("manual entry")
+
+
+SCHOOLS = load_schools()
+
+
+def test_every_real_source_scope_matches_a_school_slug_or_district_slug():
+    sources = yaml.safe_load((ROOT / "ingestion" / "sources.yaml").read_text())["sources"]
+    assert check_scopes(sources, SCHOOLS) == []
+
+
+def test_check_scopes_flags_a_district_name_used_as_scope_value():
+    bad = [{"id": "x", "scope_type": "district", "scope_value": "Three Village Central School District"},
+           {"id": "y", "scope_type": "institution", "scope_value": "no-such-school"}]
+    assert len(check_scopes(bad, SCHOOLS)) == 2
+
+
+def test_district_names_on_a_page_are_rewritten_to_district_slugs():
+    recs = [{"requires": {"districts": ["Three Village CSD", "Three Village Central School District", "Longwood Central"]}}]
+    assert normalize_districts(recs, SCHOOLS)[0]["requires"]["districts"] == ["three-village-csd", "longwood-central"]
+
+
+def test_every_school_has_a_district_slug_only_if_it_has_a_district():
+    assert all(bool(s["district"]) == bool(s["district_slug"]) for s in SCHOOLS)
+
+
+def test_bare_publish_is_refused_before_anything_runs():
+    with pytest.raises(SystemExit) as exc:
+        run(["--publish"])
+    assert exc.value.code == 2
+    with pytest.raises(SystemExit):
+        run(["--publish", "--source", "sbu-eop"])  # a single source still needs --school or --all
