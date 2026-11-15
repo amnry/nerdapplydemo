@@ -1,4 +1,4 @@
-// QA page: last pipeline run, per-source status, rejections by reason, needs_review list, cost and the personalization meter per school.
+// QA page: totals across schools, per-source status, last-run rejections, needs_review list, and where each school's guide items come from.
 // Every number is computed from database rows at request time; nothing is typed in.
 
 import { getAllSchools, getQaData, getVerifiedOpportunities, type QaData } from "../../lib/db";
@@ -19,6 +19,18 @@ function evidenceQuotes(evidence: unknown): string[] {
     return o?.quote ? `${o.field ?? "quote"}: "${o.quote}"` : JSON.stringify(e);
   });
 }
+
+// Gate codes from the pipeline's verify step, in plain words.
+const REASON_WORDS: Record<string, string> = {
+  Q1: "A quote or value was not found on the page",
+  Q2: "A link was not on the official website",
+  Q3: "A date had no year",
+  Q4: "Cancelled, closed or already past",
+  Q5: "Grade wording was unclear",
+  Q6: "A required field or quote was missing",
+  Q7: "A link did not work",
+  Q8: "The summary contained digits",
+};
 
 function fetchState(result: unknown): string {
   switch (result) {
@@ -46,57 +58,67 @@ export default async function QaPage() {
   for (const r of qa.rejections) byCode.set(r.reason_code, (byCode.get(r.reason_code) ?? 0) + 1);
 
   // A run's school_slug is one slug, a comma list, or "all"; only runs for exactly one school can be charged to it.
-  const sumRuns = (runs: QaData["allRuns"]) => ({
-    runs: runs.length,
-    cost: runs.reduce((a, r) => a + (r.cost_usd ?? 0), 0),
-    tokensIn: runs.reduce((a, r) => a + r.tokens_in, 0),
-    tokensOut: runs.reduce((a, r) => a + r.tokens_out, 0),
-  });
-  const costRows = [
-    ...schools.map((sc) => ({ label: sc.name, ...sumRuns(qa.allRuns.filter((r) => r.school_slug === sc.slug)) })),
-    { label: "All schools together (or school not recorded)", ...sumRuns(qa.allRuns.filter((r) => !r.school_slug || !schools.some((sc) => sc.slug === r.school_slug))) },
+  const sumCost = (runs: QaData["allRuns"]) => runs.reduce((a, r) => a + (r.cost_usd ?? 0), 0);
+  const totalSpend = sumCost(qa.allRuns);
+  const spendBySchool = [
+    ...schools.map((sc) => ({ label: sc.name, cost: sumCost(qa.allRuns.filter((r) => r.school_slug === sc.slug)) })),
+    { label: "all schools together", cost: sumCost(qa.allRuns.filter((r) => !r.school_slug || !schools.some((sc) => sc.slug === r.school_slug))) },
   ];
 
-  const run = qa.lastRun;
-  const verified = num(run?.verified);
-  const cost = num(run?.cost_usd);
+  const countSources = (result: string) => qa.sources.filter((s) => s.last_result === result).length;
+  const otherSources = qa.sources.length - countSources("ok") - countSources("blocked_by_robots") - countSources("error");
+  // The same rejection repeats on every run that sees it, so count each distinct source, title and reason once.
+  const rejectedRows = new Set(qa.allRejections.map((r) => `${r.source_id}|${r.title}|${r.reason_code}`)).size;
+
+  const lastRunSchool = (() => {
+    const slug = qa.lastRun?.school_slug;
+    if (typeof slug !== "string" || !slug) return "school not recorded";
+    if (slug === "all") return "all schools";
+    return slug.split(",").map((s) => schools.find((sc) => sc.slug === s)?.name ?? s).join(", ");
+  })();
 
   return (
     <main>
       <h1>QA</h1>
 
-      <h2>Last run</h2>
-      {!run ? (
-        <p>No pipeline run recorded yet.</p>
-      ) : (
-        <table>
-          <tbody>
-            {["started_at", "finished_at", "sources_attempted", "sources_ok", "extracted", "verified", "needs_review", "rejected", "tokens_in", "tokens_out"].map(
-              (k) => (
-                <tr key={k}>
-                  <th>{k.replace(/_/g, " ")}</th>
-                  <td>{String(run[k] ?? NA)}</td>
-                </tr>
-              ),
-            )}
+      <h2>Totals across all schools</h2>
+      <table>
+        <tbody>
+          <tr>
+            <th>Sources fetched</th>
+            <td>{countSources("ok")}</td>
+          </tr>
+          <tr>
+            <th>Sources blocked by robots.txt</th>
+            <td>{countSources("blocked_by_robots")}</td>
+          </tr>
+          <tr>
+            <th>Sources failed</th>
+            <td>{countSources("error")}</td>
+          </tr>
+          {otherSources > 0 && (
             <tr>
-              <th>cost</th>
-              <td>{usd(run.cost_usd)}</td>
+              <th>Sources skipped or not checked yet</th>
+              <td>{otherSources}</td>
             </tr>
-            <tr>
-              <th>cost per verified record</th>
-              <td>{cost != null && verified ? usd(cost / verified) : NA}</td>
-            </tr>
-          </tbody>
-        </table>
-      )}
-
-      <h2>Totals across all published runs</h2>
+          )}
+          <tr>
+            <th>Rows verified</th>
+            <td>{qa.rowCounts.verified}</td>
+          </tr>
+          <tr>
+            <th>Rows in review</th>
+            <td>{qa.rowCounts.needsReview}</td>
+          </tr>
+          <tr>
+            <th>Rows rejected (each distinct rejection counted once)</th>
+            <td>{rejectedRows}</td>
+          </tr>
+        </tbody>
+      </table>
       <p>
-        Runs recorded: {qa.allRuns.length} | Cost: {usd(qa.allRuns.reduce((a, r) => a + (r.cost_usd ?? 0), 0))} | Tokens in:{" "}
-        {qa.allRuns.reduce((a, r) => a + r.tokens_in, 0)} | Tokens out: {qa.allRuns.reduce((a, r) => a + r.tokens_out, 0)}
+        Total spend: {usd(totalSpend)}. By school: {spendBySchool.map((s) => `${s.label} ${usd(s.cost)}`).join("; ")}.
       </p>
-      <p>Dry runs are not recorded in the database, so money spent on dry runs is not included here.</p>
 
       <h2>Per-source status</h2>
       <table>
@@ -126,14 +148,14 @@ export default async function QaPage() {
         </tbody>
       </table>
 
-      <h2>Rejections by reason code (last run)</h2>
+      <h2>Rejections in the last run ({lastRunSchool})</h2>
       {byCode.size === 0 ? (
         <p>None.</p>
       ) : (
         <ul>
           {[...byCode.entries()].sort().map(([code, n]) => (
             <li key={code}>
-              {code}: {n}
+              {REASON_WORDS[code] ?? code}: {n}
             </li>
           ))}
         </ul>
@@ -152,32 +174,7 @@ export default async function QaPage() {
         </ul>
       )}
 
-      <h2>Per school</h2>
-      <h3>Cost per school (published runs)</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>Run scope</th>
-            <th>Runs</th>
-            <th>Cost</th>
-            <th>Tokens in</th>
-            <th>Tokens out</th>
-          </tr>
-        </thead>
-        <tbody>
-          {costRows.map((r) => (
-            <tr key={r.label}>
-              <td>{r.label}</td>
-              <td>{r.runs}</td>
-              <td>{usd(r.cost)}</td>
-              <td>{r.tokensIn}</td>
-              <td>{r.tokensOut}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p>Runs that covered every school at once are listed separately; their cost cannot be split by school.</p>
-      <h3>Personalization meter</h3>
+      <h2>Where each guide&apos;s items come from</h2>
       <table>
         <thead>
           <tr>

@@ -44,6 +44,8 @@ export interface QaData {
   lastRun: Record<string, unknown> | null;
   allRuns: { school_slug: string | null; cost_usd: number | null; tokens_in: number; tokens_out: number }[];
   sources: Record<string, unknown>[];
+  rowCounts: { verified: number; needsReview: number };
+  allRejections: { source_id: number | null; title: string | null; reason_code: string }[]; // every run; the page de-duplicates repeats
   rejections: { reason_code: string; run_id: number | null; title: string | null; detail: string | null }[];
   needsReview: Pick<Opportunity, "id" | "title" | "scope_type" | "scope_value" | "review_note" | "source_url">[];
 }
@@ -53,6 +55,9 @@ export async function getQaData(): Promise<QaData> {
   const run = await db.from("pipeline_runs").select("*").order("started_at", { ascending: false }).limit(1).maybeSingle();
   const allRuns = await db.from("pipeline_runs").select("school_slug, cost_usd, tokens_in, tokens_out");
   const sources = await db.from("sources").select("slug, url, owner, stage, last_result, last_note, last_status, last_fetched_at, last_checked_at").order("slug");
+  const verifiedCount = await db.from("opportunities").select("id", { count: "exact", head: true }).eq("verification_state", "verified");
+  const reviewCount = await db.from("opportunities").select("id", { count: "exact", head: true }).eq("verification_state", "needs_review");
+  const allRejections = await db.from("rejections").select("source_id, title, reason_code");
   const lastRunId = (run.data as { id?: number } | null)?.id ?? null;
   const rejections = lastRunId == null
     ? { data: [], error: null }
@@ -62,10 +67,12 @@ export async function getQaData(): Promise<QaData> {
     .select("id, title, scope_type, scope_value, review_note, source_url")
     .eq("verification_state", "needs_review")
     .order("id");
-  for (const r of [run, allRuns, sources, rejections, review]) if (r.error) throw new Error(`qa read failed: ${r.error.message}`);
+  for (const r of [run, allRuns, sources, rejections, review, verifiedCount, reviewCount, allRejections]) if (r.error) throw new Error(`qa read failed: ${r.error.message}`);
   return {
     lastRun: run.data as QaData["lastRun"],
     allRuns: (allRuns.data ?? []) as QaData["allRuns"],
+    rowCounts: { verified: verifiedCount.count ?? 0, needsReview: reviewCount.count ?? 0 },
+    allRejections: (allRejections.data ?? []) as QaData["allRejections"],
     sources: (sources.data ?? []) as QaData["sources"],
     rejections: (rejections.data ?? []) as QaData["rejections"],
     needsReview: (review.data ?? []) as QaData["needsReview"],
