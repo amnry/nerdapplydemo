@@ -59,15 +59,23 @@ def verify(rec: dict, text: str, source: dict, today: date = None, url_ok=None) 
             add("Q6", f"missing_{f}", "reject")
     if not ev:
         add("Q6", "missing_evidence", "reject")
+    elif not any(quotes.get("title", [])):  # every record needs a quote that names the item
+        add("Q6", "missing_title_quote", "reject")
     hosts = allowed_hosts(source)  # Q2
     for name, url in (("page", source.get("final_url") or source["url"]), ("action_url", rec.get("action_url"))):
         if url and not host_ok(url, hosts):
             add("Q2", f"{name}_off_domain:{url}", "reject")
-    page = norm(text)  # Q1: every quote must be on the page
-    for f, qs in quotes.items():
-        for q in qs:
-            if not q or q not in page:
-                add("Q1", f"quote_not_found:{f}", "reject")
+    page = None if text is None else norm(text)  # Q1: every quote must be on the page
+    date_text = norm(rec.get("date_text") or "")
+    if page is None:  # hand-entered record for a page we could not fetch: quotes are for the manual audit
+        add("Q1", "quote_unchecked:no_page_text", "note")
+    else:
+        for f, qs in quotes.items():
+            for q in qs:
+                if not q or q not in page:
+                    add("Q1", f"quote_not_found:{f}", "reject")
+        if date_text and date_text not in page:
+            add("Q1", "date_text_not_found", "reject")
     if any(r.level == "reject" for r in reasons):
         return Verdict("rejected", reasons, rec)
 
@@ -101,8 +109,12 @@ def verify(rec: dict, text: str, source: dict, today: date = None, url_ok=None) 
             add("Q3", f"year_missing:{f}", "note")
     year_unknown = year_unknown or any(rec.get(f) is None and quotes.get(f) and not re.search(r"\b20\d{2}\b", field_quote(f))
                                        for f in DATE_FIELDS)  # the model already nulled a yearless date (prompt rule 2)
+    year_unknown = year_unknown or (bool(date_text) and not any(rec.get(f) for f in DATE_FIELDS))
+    claimed = rec.get("date_confidence")
     rec["date_confidence"] = "exact" if any(rec.get(f) for f in DATE_FIELDS) else (
         "year_unknown" if year_unknown else "not_published")
+    if claimed == "year_unknown" and rec["date_confidence"] != "year_unknown":
+        add("Q3", "model_claimed_year_unknown_without_date_text_or_quote", "note")
 
     words = field_quote("status").lower()  # Q4: stale or cancelled cycles can never be "do now"
     if re.search(r"\bcancel+ed\b", words):
@@ -125,5 +137,8 @@ def verify(rec: dict, text: str, source: dict, today: date = None, url_ok=None) 
 
     if url_ok and rec.get("action_url") and not url_ok(rec["action_url"]):  # Q7
         add("Q7", f"link_dead:{rec['action_url']}", "review")
+
+    if re.search(r"\d", rec.get("summary") or ""):  # Q8: summaries carry no unchecked dates or costs
+        add("Q8", "summary_has_digits", "review")
 
     return Verdict("needs_review" if any(r.level == "review" for r in reasons) else "verified", reasons, rec)

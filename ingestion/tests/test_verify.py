@@ -25,7 +25,8 @@ GOOD = {
     "grade_basis": "entering", "grades_allowed": [9, 10, 11, 12], "deadline": "2027-03-03",
     "opens_on": None, "starts_on": None, "status": "open", "action_type": "apply",
     "action_url": "https://www.example.edu/apply", "cost_usd": 450.0, "tags": [], "requires": {},
-    "evidence": [ev("grades_allowed", "Open to students entering grades 9 through 12."),
+    "evidence": [ev("title", "Summer Research Institute (TEST ONLY)"),
+                 ev("grades_allowed", "Open to students entering grades 9 through 12."),
                  ev("deadline", "Application deadline: March 3, 2027."), ev("cost_usd", "Program fee: $450."),
                  ev("status", "Application deadline: March 3, 2027."), ev("action_type", "Apply here")],
 }
@@ -121,7 +122,7 @@ def test_q7_dead_action_link_goes_to_needs_review():
 INJ_PAGE = html_to_text((FIX / "test_only_injection.html").read_text())
 INJ_BASE = {**GOOD, "title": "Garden club", "summary": "Weekend club.", "category": "club", "grades_allowed": None,
             "cost_usd": None, "deadline": "2027-03-15", "action_type": "mark_calendar", "action_url": None,
-            "evidence": [ev("action_type", "Our garden club meets on weekends.")]}
+            "evidence": [ev("title", "Community Newsletter (TEST ONLY)"), ev("action_type", "Our garden club meets on weekends.")]}
 
 
 def test_injection_invented_deadline_cannot_pass_q1():
@@ -151,3 +152,40 @@ def test_model_nulled_yearless_date_is_marked_year_unknown():
     r.update(deadline=None)
     r["evidence"] = [e for e in r["evidence"] if e["field"] != "deadline"] + [ev("deadline", "Info session: April 8 at 6pm.")]
     assert run(r).record["date_confidence"] == "year_unknown"
+
+
+def test_q6_record_without_a_title_quote_rejects():
+    r = deepcopy(GOOD)
+    r["evidence"] = [e for e in r["evidence"] if e["field"] != "title"]
+    v = run(r)
+    assert v.state == "rejected" and ("Q6", "missing_title_quote") in codes(v)
+
+
+def test_q8_summary_with_digits_goes_to_needs_review():
+    v = run({**GOOD, "summary": "A program that runs 10 weeks."})
+    assert v.state == "needs_review" and ("Q8", "summary_has_digits") in codes(v)
+
+
+def test_date_text_must_be_verbatim_on_the_page():
+    v = run({**GOOD, "date_text": "April 9"})
+    assert v.state == "rejected" and ("Q1", "date_text_not_found") in codes(v)
+
+
+def test_yearless_date_text_with_no_date_value_is_year_unknown():
+    r = deepcopy(GOOD)
+    r.update(deadline=None, date_text="April 8", date_confidence="year_unknown")
+    r["evidence"] = [e for e in r["evidence"] if e["field"] != "deadline"]
+    v = run(r)
+    assert v.record["date_confidence"] == "year_unknown" and v.record["date_text"] == "April 8" and v.state == "verified"
+
+
+def test_model_claim_of_year_unknown_is_not_trusted_blindly():
+    v = run({**GOOD, "deadline": None, "date_confidence": "year_unknown",
+             "evidence": [e for e in GOOD["evidence"] if e["field"] != "deadline"]})
+    assert v.record["date_confidence"] == "not_published" and any(c == "Q3" for c, _ in codes(v, "note"))
+
+
+def test_manual_record_without_page_text_skips_only_the_page_match():
+    v = verify(GOOD, None, SRC, today=TODAY, url_ok=OK)
+    assert v.state == "verified" and ("Q1", "quote_unchecked:no_page_text") in codes(v, "note")
+    assert verify({**GOOD, "title": ""}, None, SRC, today=TODAY).state == "rejected"

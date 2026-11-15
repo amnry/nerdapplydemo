@@ -1,0 +1,7 @@
+# Hand-entered records, for pages the pipeline may not fetch (for example sources marked blocked_by_robots).
+# Each entry has the same fields as an extracted record (see RECORD_SCHEMA in models.py) plus:
+#   source (a source id from sources.yaml), entered_by, entered_on.
+# Evidence quotes must be copied verbatim from the page by the person entering the record. They go through the same
+# gates, except the page-text match (no fetched text), so each one is logged "quote_unchecked" and must be covered by
+# the manual audit (docs/AUDIT.csv). Rows are stored with extraction_method=manual. Never enter a fact you have not read.
+records: []

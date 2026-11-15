@@ -1,8 +1,13 @@
-# The 4 demo schools. UNVERIFIED: name, kind, district, county and feeder come from plan.md section 2; the cities
-# of the two colleges and Garden City are from general knowledge, not a source. Every value, and every null, must
-# be checked against the school's official site (and verified_at set) before this file is seeded to the database.
+# The 4 demo schools. Proposed values only: verified_at stays null and nothing is seeded until the presenter supplies
+# lat/lon and confirms each row. Source URLs are the official pages the values came from. The Gelinas row was NOT
+# fetched by the pipeline (the district's robots.txt disallows it); it comes from search results, to be confirmed by hand.
+# The schools table has no street-address column, so the street address lives in the comment on each row.
 schools:
-  - {slug: stony-brook-university, kind: college, name: Stony Brook University, district: null, county: Suffolk, city: Stony Brook, zip: null, lat: null, lon: null, grade_low: null, grade_high: null, feeder_high_school: null, source_url: null, verified_at: null}
-  - {slug: hofstra-university, kind: college, name: Hofstra University, district: null, county: Nassau, city: Hempstead, zip: null, lat: null, lon: null, grade_low: null, grade_high: null, feeder_high_school: null, source_url: null, verified_at: null}
-  - {slug: gelinas-middle-school, kind: middle_school, name: Paul J. Gelinas Middle School, district: Three Village CSD, county: Suffolk, city: Setauket, zip: null, lat: null, lon: null, grade_low: null, grade_high: null, feeder_high_school: Ward Melville High School, source_url: null, verified_at: null}
-  - {slug: garden-city-middle-school, kind: middle_school, name: Garden City Middle School, district: Garden City Public Schools, county: Nassau, city: Garden City, zip: null, lat: null, lon: null, grade_low: null, grade_high: null, feeder_high_school: Garden City High School, source_url: null, verified_at: null}
+  # 100 Nicolls Road, Stony Brook, NY 11794
+  - {slug: stony-brook-university, kind: college, name: Stony Brook University, district: null, county: Suffolk, city: Stony Brook, zip: "11794", lat: null, lon: null, grade_low: null, grade_high: null, feeder_high_school: null, source_url: "https://www.stonybrook.edu/contact/", verified_at: null}
+  # Admission mailing address: 100 Hofstra University, Hempstead, NY 11549-1000 (campus navigation address 900 Fulton Avenue, Hempstead, NY 11550 was seen in a search result only)
+  - {slug: hofstra-university, kind: college, name: Hofstra University, district: null, county: Nassau, city: Hempstead, zip: "11549", lat: null, lon: null, grade_low: null, grade_high: null, feeder_high_school: null, source_url: "https://www.hofstra.edu/admission/contact-us/", verified_at: null}
+  # 25 Mud Road, Setauket, NY 11733. NOT FETCHED; confirm at the two source pages below.
+  - {slug: gelinas-middle-school, kind: middle_school, name: P.J. Gelinas Middle School, district: Three Village Central School District, county: Suffolk, city: Setauket, zip: "11733", lat: null, lon: null, grade_low: 6, grade_high: 8, feeder_high_school: Ward Melville High School, source_url: "https://gelinas.threevillagecsd.org/apps/contact/", verified_at: null}
+  # 98 Cherry Valley Ave, Garden City, NY 11530; district office 56 Cathedral Avenue, Garden City, NY 11530
+  - {slug: garden-city-middle-school, kind: middle_school, name: Garden City Middle School, district: Garden City Public Schools, county: Nassau, city: Garden City, zip: "11530", lat: null, lon: null, grade_low: 6, grade_high: 8, feeder_high_school: Garden City High School, source_url: "https://gcms.gardencity.k12.ny.us/62854", verified_at: null}

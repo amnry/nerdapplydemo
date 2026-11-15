@@ -6,12 +6,14 @@ from datetime import datetime, timezone
 
 import yaml
 
-from .extract import extract
-from .fetch import check_url, fetch_source, new_client
+from .extract import apply_pre_admission, extract
+from .fetch import check_url, fetch_source, new_client, robots_ok
 from .models import ROOT, load_env
 from .publish import SupabaseStore, apply_overrides, build_row, load_overrides, publish_rows
 from .report import run_row, write_report
 from .verify import verify
+
+MANUAL_META = ("source", "entered_by", "entered_on")
 
 
 def run(argv=None) -> dict:
@@ -22,24 +24,51 @@ def run(argv=None) -> dict:
     ap.add_argument("--max-pages", type=int, default=15, help="cap on pages fetched this run")
     args = ap.parse_args(argv)
     load_env()
-    sources = yaml.safe_load((ROOT / "ingestion" / "sources.yaml").read_text())["sources"]
-    sources = [s for s in sources if not args.source or s["id"] == args.source][: args.max_pages]
+    all_sources = yaml.safe_load((ROOT / "ingestion" / "sources.yaml").read_text())["sources"]
+    sources = [s for s in all_sources if not args.source or s["id"] == args.source]
     stats = {"started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
              "mode": "publish" if args.publish else "dry-run", "sources_attempted": 0, "sources_ok": 0,
-             "extracted": 0, "verified": 0, "needs_review": 0, "rejected": 0, "tokens_in": 0, "tokens_out": 0,
-             "rejections_by_code": {}, "per_source": [], "rejections": []}
+             "extracted": 0, "verified": 0, "needs_review": 0, "rejected": 0, "manual": 0, "tokens_in": 0,
+             "tokens_out": 0, "rejections_by_code": {}, "per_source": [], "rejections": [], "dropped_pre_admission": []}
     rows: dict = {}
-    seen: dict = {}
+    pages: dict = {}   # source id -> (text, final_url) for pages fetched this run
+    seen: dict = {}    # page hash -> first source id that reached it
+
+    def handle(rec, src, text, final_url, client, method="llm", note=None):
+        v = verify(rec, text, {**src, "final_url": final_url}, url_ok=lambda u: check_url(client, u))
+        if v.state == "rejected":
+            stats["rejected"] += 1
+            for r in (r for r in v.reasons if r.level == "reject"):
+                stats["rejections_by_code"][r.code] = stats["rejections_by_code"].get(r.code, 0) + 1
+                stats["rejections"].append({"source": src["id"], "title": rec.get("title"), "code": r.code, "detail": r.detail})
+            return
+        stats["verified" if v.state == "verified" else "needs_review"] += 1
+        stats["manual"] += method == "manual"
+        row = build_row(v.record, src, v.state, method, note)
+        rows[row["dedupe_key"]] = row
+
+    fetched = 0
     with new_client() as client:
         for src in sources:
             stats["sources_attempted"] += 1
-            f = fetch_source(src, client)
-            entry = {"id": src["id"], "school": src["school"], "result": "ok", "tokens_est": f.tokens_est, "note": ""}
+            entry = {"id": src["id"], "school": src["school"], "result": "ok", "tokens_est": 0, "note": ""}
             stats["per_source"].append(entry)
+            if src.get("blocked_by_robots"):  # flagged by a human; confirm with one robots.txt request, never fetch the page
+                still = not robots_ok(client, src["url"])
+                entry.update(result="blocked_by_robots" if still else "error",
+                             note="robots.txt disallows this crawler" if still else "flagged blocked_by_robots but robots.txt now allows it: review the flag")
+                continue
+            if fetched >= args.max_pages:
+                entry.update(result="skipped", note="page cap reached")
+                continue
+            fetched += 1
+            f = fetch_source(src, client)
+            entry["tokens_est"] = f.tokens_est
             if f.error or f.skipped:
                 entry.update(result="error" if f.error else "skipped", note=f.error or f.skipped)
                 continue
             stats["sources_ok"] += 1
+            pages[src["id"]] = (f.text, f.final_url)
             if f.sha in seen:  # same page reached by two registered URLs: extract it once
                 entry["note"] = f"duplicate page of {seen[f.sha]}; not re-extracted"
                 continue
@@ -51,23 +80,22 @@ def run(argv=None) -> dict:
                 continue
             stats["tokens_in"] += usage["tokens_in"]
             stats["tokens_out"] += usage["tokens_out"]
+            recs, dropped = apply_pre_admission(recs, src)
+            stats["dropped_pre_admission"] += [{"source": src["id"], "title": t} for t in dropped]
             for rec in recs:
                 stats["extracted"] += 1
-                v = verify(rec, f.text, {**src, "final_url": f.final_url}, url_ok=lambda u: check_url(client, u))
-                if v.state == "rejected":
-                    stats["rejected"] += 1
-                    for r in (r for r in v.reasons if r.level == "reject"):
-                        stats["rejections_by_code"][r.code] = stats["rejections_by_code"].get(r.code, 0) + 1
-                        stats["rejections"].append({"source": src["id"], "title": rec.get("title"), "code": r.code, "detail": r.detail})
-                    continue
-                stats["verified" if v.state == "verified" else "needs_review"] += 1
-                row = build_row(v.record, src, v.state)
-                rows[row["dedupe_key"]] = row
+                handle(rec, src, f.text, f.final_url, client)
+        manual = (yaml.safe_load((ROOT / "ingestion" / "manual_records.yaml").read_text()) or {}).get("records") or []
+        by_id = {s["id"]: s for s in all_sources}
+        for m in manual:  # hand-entered records: same gates, but no page text when the page was blocked
+            text, final_url = pages.get(m["source"], (None, None))
+            handle({k: v for k, v in m.items() if k not in MANUAL_META}, by_id[m["source"]], text, final_url, client,
+                   "manual", f"manual entry by {m['entered_by']} on {m['entered_on']}")
     rows, stats["unmatched_overrides"] = apply_overrides(rows, load_overrides())
     if args.publish:
         store = SupabaseStore(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
         store.upsert("sources", [{"slug": s["id"], **{k: s[k] for k in ("url", "owner", "stage", "scope_type", "scope_value", "lat", "lon")}}
-                                 for s in sources], "slug")  # opportunities reference sources by id
+                                 for s in all_sources], "slug")  # opportunities reference sources by id
         stats["publish"] = publish_rows(store, list(rows.values()))
         run_id = store.insert("pipeline_runs", run_row(stats, datetime.now(timezone.utc).isoformat()))["id"]
         sid = store._source_ids()
@@ -75,9 +103,10 @@ def run(argv=None) -> dict:
             store.insert("rejections", {"run_id": run_id, "source_id": sid.get(rej["source"]), "title": rej["title"],
                                         "reason_code": rej["code"], "detail": rej["detail"]})
     path = write_report(stats)
-    print(f"{stats['mode']}: {stats['sources_ok']}/{stats['sources_attempted']} pages fetched, "
+    print(f"{stats['mode']}: {stats['sources_ok']}/{stats['sources_attempted']} sources fetched, "
           f"{stats['extracted']} extracted, {stats['verified']} verified, {stats['needs_review']} needs_review, "
-          f"{stats['rejected']} rejected. Report: {path}")
+          f"{stats['rejected']} rejected, {len(stats['dropped_pre_admission'])} dropped (pre_admission), "
+          f"{stats['manual']} manual. Report: {path}")
     return stats
 
 

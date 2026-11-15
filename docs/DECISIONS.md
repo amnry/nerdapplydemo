@@ -44,3 +44,16 @@ Running log of choices the plan left open. Each entry: decision, then reason.
 - **Date wording.** A date quoted without a year prints "date listed without a year, confirm with the school" and is bucketed Plan ahead. Only a row with no date prints "date not published". This refines plan section 10 case 5, which says "date not published" for the year-less case.
 - **Test runner.** vitest added as a dev dependency (plan section 10 names it); `npm test` runs `tests/match.test.ts`. Cases use synthetic rows, not real rows, so gate 4 stays unticked.
 - **Empty guide.** The guide page prints an explicit "No verified opportunities yet" section when nothing matches.
+
+## Gate 2 follow-ups (presenter decisions, Nov 14-15)
+
+- **pre_admission sources.** `sbu-apply-first-year` is marked `pre_admission: true`. Records the model flags `is_admission_application` are dropped (listed in the QA report, not counted as rejected); every other record from that source is forced to `action_type=ask_school` with `requires.note`. The flag `is_admission_application` is a schema field and prompt rule 11 added to make the drop decidable; it is not one of the four prompt changes the presenter listed.
+- **Prompt changes:** no digits in summaries; one cost per record (split mixed fees); every record needs a `title` quote; yearless dates return their quote, a verbatim `date_text`, and `date_confidence=year_unknown`. Prompt hash is part of the cache key, so each prompt edit re-extracts.
+- **Gates added:** Q6 now needs a non-empty `title` quote (`missing_title_quote`); Q1 checks `date_text` is verbatim on the page; **Q8** sends a summary containing any digit to `needs_review`. The model's `date_confidence` claim is not trusted: verify recomputes it, and logs a Q3 note when the claim is unsupported.
+- **`action_url` falls back to the source URL** when the page gave none.
+- **`blocked_by_robots: true` sources** are never fetched; each run makes one robots.txt request to confirm and lists them in the QA report. If robots.txt later allows the crawler, the run flags the stale flag instead of fetching.
+- **`manual_records.yaml`:** hand-entered records (file is empty; nothing was invented). Same gates, but when the page was not fetched the quote-on-page check is skipped and logged `quote_unchecked:no_page_text`, so each such record must be covered by the manual audit. Stored with `extraction_method=manual` and a review note naming who entered it and when.
+- **Gelinas name:** P.J. Gelinas Middle School (the district's own name), district Three Village Central School District. Gelinas facts are unfetched (robots) and unverified.
+- **Migration `002_date_text.sql` is written but NOT applied.** The pipeline now writes `opportunities.date_text`; apply it before the first `--publish`.
+- **Schools stay unseeded** until the presenter supplies coordinates and confirms each row (`verified_at` null).
+- **Live LLM spend so far:** $0.2040 (first run) + $0.2593 (second) = $0.4633.

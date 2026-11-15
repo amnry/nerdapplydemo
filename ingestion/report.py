@@ -23,14 +23,20 @@ def write_report(stats: dict, path=ROOT / "docs" / "QA_REPORT.md") -> str:
           f"| Sources fetched OK | {_pct(stats['sources_ok'], stats['sources_attempted'])} |",
           f"| Records extracted | {stats['extracted']} |", f"| Verified | {stats['verified']} |",
           f"| Needs review | {stats['needs_review']} |", f"| Rejected | {stats['rejected']} |",
+          f"| Dropped (pre_admission: about applying for admission) | {len(stats.get('dropped_pre_admission', []))} |",
+          f"| Manual records (quotes not machine-checked if page blocked) | {stats.get('manual', 0)} |",
           f"| Tokens in / out | {stats['tokens_in']} / {stats['tokens_out']} |",
           f"| LLM cost | {fmt(cost)} |", f"| Cost per verified record | {per_rec_txt} |", "",
           "## Per source", "", "| Source | School | Result | Tokens (est.) | Note |", "|---|---|---|---|---|"]
     L += [f"| {s['id']} | {s['school']} | {s['result']} | {s['tokens_est']} | {s['note']} |" for s in stats["per_source"]]
     L += ["", "## Rejections by reason code", ""]
     L += [f"- {c}: {n}" for c, n in sorted(stats["rejections_by_code"].items())] or ["- none"]
+    L += ["", "## Blocked by robots.txt (cannot be fetched; use manual_records.yaml)", ""]
+    L += [f"- {s['id']} ({s['school']}): {s['note']}" for s in stats["per_source"] if s["result"] == "blocked_by_robots"] or ["- none"]
     L += ["", "## Skipped pages (HTML only tonight)", ""]
     L += [f"- {s['id']}: {s['note']}" for s in stats["per_source"] if s["result"] == "skipped"] or ["- none"]
+    L += ["", "## Dropped by pre_admission rule", ""]
+    L += [f"- {d['source']}: {d['title']}" for d in stats.get("dropped_pre_admission", [])] or ["- none"]
     L += ["", "## Overrides with no matching record", ""]
     L += [f"- {k}" for k in stats.get("unmatched_overrides", [])] or ["- none"]
     path.parent.mkdir(parents=True, exist_ok=True)

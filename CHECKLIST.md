@@ -8,7 +8,7 @@ Source: `plan.md` section 12. Tick a box only when its gate actually runs and pa
   - Gate: the preview URL opens in incognito on a phone. (Verified by presenter on phone, Nov 14.)
 - [ ] **2. One school end to end.** Seed the 4 schools from official sources. Build `sources.yaml` for ONE school end to end. Pipeline stages 1 to 6.
   - Gate: `--dry-run` prints verified records with quotes for that one school.
-  - Status: code, 21 offline tests and an 8-page Stony Brook fetch are done. NOT ticked: extraction prompt is a stub (0 records), and the 4 schools are not seeded (values unverified). See `docs/DECISIONS.md`.
+  - Status: pipeline, 33 offline tests and a live Stony Brook dry run (17 verified, 6 needs_review, 0 rejected, 3 dropped) are done. NOT ticked: waiting on school coordinates, and the 4 schools are not seeded. See `docs/DECISIONS.md`.
 - [ ] **3. All schools.** Add sources for the other 3 schools. Run `--publish` twice.
   - Gate: 30+ verified rows, second run changes nothing, QA report generated.
 - [ ] **4. Matching.** `match.ts` + golden tests.

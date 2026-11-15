@@ -11,7 +11,7 @@ from .models import ROOT
 
 CONTENT_COLS = ["dedupe_key", "source_slug", "stage", "category", "title", "summary", "scope_type", "scope_value",
                 "venue_lat", "venue_lon", "grade_basis", "grades_allowed", "requires", "opens_on", "deadline",
-                "starts_on", "cycle_label", "date_confidence", "status", "action_type", "action_url", "cost_type",
+                "starts_on", "date_text", "cycle_label", "date_confidence", "status", "action_type", "action_url", "cost_type",
                 "cost_usd", "tags", "evidence", "source_url", "verification_state", "extraction_method", "review_note"]
 
 
@@ -33,7 +33,7 @@ def dedupe_key(rec: dict, owner: str) -> str:
     return f"{slug(owner)}|{slug(rec['title'])}|{rec['cycle_label']}"
 
 
-def build_row(rec: dict, source: dict, state: str) -> dict:
+def build_row(rec: dict, source: dict, state: str, method: str = "llm", note: str = None) -> dict:
     rec = dict(rec)
     rec["cycle_label"] = cycle_label(rec)
     cost = rec.get("cost_usd")
@@ -42,8 +42,9 @@ def build_row(rec: dict, source: dict, state: str) -> dict:
             "scope_type": source["scope_type"], "scope_value": source["scope_value"],
             "venue_lat": source.get("lat"), "venue_lon": source.get("lon"),
             "cost_type": None if cost is None else ("free" if cost == 0 else "paid"),
-            "source_url": source["url"], "verification_state": state, "extraction_method": "llm",
-            "requires": rec.get("requires") or {}, "tags": rec.get("tags") or [], "review_note": None}
+            "source_url": source["url"], "verification_state": state, "extraction_method": method,
+            "action_url": rec.get("action_url") or source["url"],
+            "requires": rec.get("requires") or {}, "tags": rec.get("tags") or [], "review_note": note}
 
 
 def load_overrides(path=ROOT / "ingestion" / "overrides.yaml") -> list:
