@@ -51,3 +51,43 @@ overrides:
     date: 2026-11-15
     note: "Summary rewritten by presenter."
     fields: {summary: "Honors College, WISE and University Scholars use an interest form in the StartSBU portal."}
+  - key: "cold-spring-harbor-laboratory-dna-learning-center|fun-with-dna-on-demand|none"
+    action: reject
+    reviewer: presenter
+    date: 2026-11-15
+    note: "Duplicate: On-Demand version of a camp already listed."
+  - key: "cold-spring-harbor-laboratory-dna-learning-center|forensic-detectives-on-demand|none"
+    action: reject
+    reviewer: presenter
+    date: 2026-11-15
+    note: "Duplicate: On-Demand version of a camp already listed."
+  - key: "cold-spring-harbor-laboratory-dna-learning-center|dna-barcoding-on-demand|none"
+    action: reject
+    reviewer: presenter
+    date: 2026-11-15
+    note: "Duplicate: On-Demand version of a camp already listed."
+  - key: "cold-spring-harbor-laboratory-dna-learning-center|genome-science-on-demand|none"
+    action: reject
+    reviewer: presenter
+    date: 2026-11-15
+    note: "Duplicate: On-Demand version of a camp already listed."
+  - key: "cold-spring-harbor-laboratory-dna-learning-center|on-demand-fun-with-dna|none"
+    action: reject
+    reviewer: presenter
+    date: 2026-11-15
+    note: "Duplicate of Fun with DNA On-Demand (same program, second page)."
+  - key: "cold-spring-harbor-laboratory-dna-learning-center|dnalc-in-residence-fun-with-dna-at-miss-porter-s-school|summer-2026"
+    action: reject
+    reviewer: presenter
+    date: 2026-11-15
+    note: "Past, out-of-state residential program for girls ages 11-14; not relevant."
+  - key: "brookhaven-national-laboratory|science-undergraduate-laboratory-internship-suli|ay-2026-27"
+    action: reject
+    reviewer: presenter
+    date: 2026-11-15
+    note: "For undergraduates; not for middle school students."
+  - key: "brookhaven-national-laboratory|community-college-internship-cci|ay-2026-27"
+    action: reject
+    reviewer: presenter
+    date: 2026-11-15
+    note: "For community college students; not for middle school students."

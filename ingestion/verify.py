@@ -41,9 +41,23 @@ def _cost_in_quote(value: float, quote: str) -> bool:
     return any(abs(float(n) - value) < 0.005 for n in re.findall(r"\d+(?:\.\d+)?", q))
 
 
-def _grades_in_quote(grades: list, quote: str) -> bool:
+def _covered_grades(quote: str) -> set:
+    """Grades a quote names: ranges ('2-10', '6 to 8', 'K-8') cover every grade between; lists ('9 or 10') cover each one."""
     q = quote.lower()
-    return all(re.search(rf"\b{g}(st|nd|rd|th)?\b", q) or _GRADE_WORD.get(g, "~") in q for g in (min(grades), max(grades)))
+    for word, n in {**{w: g for g, w in _GRADE_WORD.items()}, "kindergarten": 0}.items():
+        q = re.sub(rf"\b{word}\b", str(n), q)
+    q = re.sub(r"\bk\b", "0", q)
+    suffix, covered = r"(?:st|nd|rd|th)?", set()
+    for a, b in re.findall(rf"\b(\d{{1,2}}){suffix}\s*(?:-|to|through|thru)\s*(\d{{1,2}}){suffix}\b", q):
+        if 0 <= int(a) <= int(b) <= 12:
+            covered.update(range(int(a), int(b) + 1))
+    covered.update(int(n) for n in re.findall(rf"\b(\d{{1,2}}){suffix}\b", q) if int(n) <= 12)
+    return covered
+
+
+def _grades_in_quote(grades: list, quote: str) -> bool:
+    """Every claimed grade must be covered by the quote."""
+    return set(grades) <= _covered_grades(quote)
 
 
 def verify(rec: dict, text: str, source: dict, today: date = None, url_ok=None) -> Verdict:
@@ -55,6 +69,9 @@ def verify(rec: dict, text: str, source: dict, today: date = None, url_ok=None) 
     for item in ev:
         quotes.setdefault(item.get("field", ""), []).append(norm(item.get("quote", "")))
 
+    is_club = rec.get("category") == "club"  # a club needs only a title quote; it is "ask the school" and ongoing
+    if is_club:
+        rec["action_type"], rec["status"] = "ask_school", "ongoing"
     for f in ("title", "summary", "category", "action_type"):  # Q6
         if not rec.get(f):
             add("Q6", f"missing_{f}", "reject")
@@ -80,7 +97,7 @@ def verify(rec: dict, text: str, source: dict, today: date = None, url_ok=None) 
     if any(r.level == "reject" for r in reasons):
         return Verdict("rejected", reasons, rec)
 
-    if date_text and not (_MONTH_NAME.search(date_text) or re.search(r"\d", date_text)):  # "posted deadlines" is not a date
+    if date_text and not _MONTH_NAME.search(date_text):  # "posted deadlines" and meeting times are not dates
         add("Q3", "date_text_not_a_date:nulled", "note")
         rec["date_text"], date_text = None, ""
 
@@ -88,7 +105,7 @@ def verify(rec: dict, text: str, source: dict, today: date = None, url_ok=None) 
         return " ".join(quotes.get(f, []))
 
     for f in (*DATE_FIELDS, "grades_allowed", "cost_usd", "status", "cycle_label"):  # Q1: values must match their quotes
-        if rec.get(f) in (None, []) or (f == "status" and rec[f] == "unknown"):
+        if rec.get(f) in (None, []) or (f == "status" and (rec[f] == "unknown" or is_club)):
             continue
         q = field_quote(f)
         if not q:
@@ -104,7 +121,7 @@ def verify(rec: dict, text: str, source: dict, today: date = None, url_ok=None) 
             add("Q1", f"value_not_in_quote:{f}", "reject")
     if any(r.level == "reject" for r in reasons):
         return Verdict("rejected", reasons, rec)
-    if not field_quote("action_type"):
+    if not field_quote("action_type") and not is_club:
         add("Q1", "no_quote_for_action_type", "review")
 
     year_unknown = False  # Q3: never assume a year
@@ -133,7 +150,7 @@ def verify(rec: dict, text: str, source: dict, today: date = None, url_ok=None) 
         rec["status"] = "closed"
         add("Q4", "date_in_past", "note")
 
-    basis, gq = rec.get("grade_basis", "unknown"), field_quote("grades_allowed").lower()  # Q5
+    basis, gq = rec.get("grade_basis", "unknown"), " ".join(q for qs in quotes.values() for q in qs).lower()  # Q5: any quote may support the basis
     if rec.get("grades_allowed") and (
             basis in ("unknown", "age")
             or (basis == "entering" and not re.search(r"entering|rising|incoming|fall\s+20\d\d", gq))

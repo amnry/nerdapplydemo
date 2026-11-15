@@ -85,3 +85,16 @@ Running log of choices the plan left open. Each entry: decision, then reason.
 - **Page cap default is 40.** Shared sources (the two DNA Learning Center pages) list both middle schools in `school: [...]`.
 - **Gate 3 sources added (dry runs only, nothing published):** Garden City: library Tweens N Teens page, 6 district/GCMS pages found by following links, 3 Adelphi and 3 Hofstra youth pages. Gelinas: Emma Clark teen site, 3 Stony Brook pre-college pages, the SCCC K-12 page, the Brookhaven education page. Skipped from the link crawl: registration and pre-K pages, and Drive/Canva/PDF files (the GCHS course catalog is a Drive file).
 - **Dry-run LLM spend:** Garden City $0.3550 (63,230 in / 22,848 out), Gelinas $0.1514 (24,322 in / 10,284 out). Total live LLM spend to date: $1.0819.
+
+## Gate 3 rules, overrides and first middle-school publish (Nov 15)
+
+- **Club rule:** a record with `category=club` needs only a `title` quote. Verify forces `action_type=ask_school` and `status=ongoing` for it and skips the action and status quote checks. Other categories still go to review without an action quote.
+- **Grades check is range-aware:** a quote covers every grade in a range ('2-10', '6 to 8', 'K-8', K = grade 0) and each grade in a list ('9 or 10', '7th & 8th'); every claimed grade must be covered. Previously only the lowest and highest grade were checked against digits.
+- **Grade basis** may be supported by any quote on the record, not only the grades quote.
+- **`date_text` must contain a month name.** Meeting times ('Tuesdays 2:15-3:15') and phrases ('posted deadlines') are nulled with a Q3 note. A year-less season such as 'Fall 2026' is nulled too.
+- **8 overrides reject:** five DNA Learning Center On-Demand duplicates, the Miss Porter's residential program, and the two Brookhaven undergraduate internships (SULI, CCI).
+- **Emma Clark sub-pages added** as `district:three-village-csd` sources (Programs, Volunteer, Summer Reading, More Opportunities, Free Classes and College Prep), URLs taken from the site's own menu. The presenter will hand-enter Three Village district rows (`manual_records.yaml`), because the district sites disallow this crawler.
+- **Scoped runs do not check for unmatched overrides** (an override for another school cannot match); the report says so.
+- **Published (each school twice, `--publish --school`):** Garden City run 1 inserted 90, run 2 wrote 0 (90 unchanged). Gelinas run 1 inserted 32 and found 21 unchanged (the shared DNA Learning Center rows already written by Garden City), run 2 wrote 0 (53 unchanged). Database total: 162 rows.
+- **Known weakness:** 'Summer Reading Challenge 2026' (Emma Clark) is verified with status unknown: the title names a 2026 cycle but no dated quote lets the stale-cycle gate close it.
+- **Live LLM spend to date:** $1.2075 (this round: Gelinas replay $0.1256; everything else came from cache).

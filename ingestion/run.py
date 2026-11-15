@@ -114,7 +114,9 @@ def run(argv=None) -> dict:
             text, final_url = pages.get(m["source"], (None, None))
             handle({k: v for k, v in m.items() if k not in MANUAL_META}, by_id[m["source"]], text, final_url, client,
                    "manual", f"manual entry by {m['entered_by']} on {m['entered_on']}")
-    rows, stats["unmatched_overrides"] = apply_overrides(rows, load_overrides())
+    rows, unmatched = apply_overrides(rows, load_overrides())
+    stats["scoped"] = bool(args.school or args.source)  # an override for a school outside this run cannot match
+    stats["unmatched_overrides"] = [] if stats["scoped"] else unmatched
     stats["rejected_by_override"] = sorted(k for k, r in rows.items() if r["verification_state"] == "rejected")
     if args.publish:
         store = SupabaseStore(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
@@ -126,6 +128,11 @@ def run(argv=None) -> dict:
         for rej in stats["rejections"]:
             store.insert("rejections", {"run_id": run_id, "source_id": sid.get(rej["source"]), "title": rej["title"],
                                         "reason_code": rej["code"], "detail": rej["detail"]})
+    counts: dict = {}
+    for r in rows.values():
+        k = f"{r['scope_type']} / {r['verification_state']}"
+        counts[k] = counts.get(k, 0) + 1
+    stats["row_counts"] = dict(sorted(counts.items()))
     path = write_report(stats)
     print(f"{stats['mode']}: {stats['sources_ok']}/{stats['sources_attempted']} sources fetched, "
           f"{stats['extracted']} extracted, {stats['verified']} verified, {stats['needs_review']} needs_review, "

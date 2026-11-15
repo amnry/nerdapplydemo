@@ -38,10 +38,13 @@ def write_report(stats: dict, path=ROOT / "docs" / "QA_REPORT.md") -> str:
     L += [f"- {s['id']}: {s['note']}" for s in stats["per_source"] if s["result"] == "skipped"] or ["- none"]
     L += ["", "## Dropped by pre_admission rule", ""]
     L += [f"- {d['source']}: {d['title']}" for d in stats.get("dropped_pre_admission", [])] or ["- none"]
+    L += ["", "## Rows by scope and state (after overrides)", ""]
+    L += [f"- {k}: {n}" for k, n in stats.get("row_counts", {}).items()] or ["- none"]
     L += ["", "## Rejected by override (human decision)", ""]
     L += [f"- {k}" for k in stats.get("rejected_by_override", [])] or ["- none"]
     L += ["", "## Overrides with no matching record", ""]
-    L += [f"- {k}" for k in stats.get("unmatched_overrides", [])] or ["- none"]
+    L += ["- not checked: this run was scoped (--school or --source); run with --all to check"] if stats.get("scoped") else \
+         [f"- {k}" for k in stats.get("unmatched_overrides", [])] or ["- none"]
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(L) + "\n")
     return str(path)

@@ -204,3 +204,57 @@ def test_date_text_without_month_or_digit_is_nulled():
 def test_date_text_with_month_name_is_kept():
     v = run({**GOOD, "date_text": "March 3"})
     assert v.record["date_text"] == "March 3"
+
+
+@pytest.mark.parametrize("quote,grades,ok", [
+    ("Specialty Tracks (Entering Grades 2-10)", list(range(2, 11)), True),
+    ("entering grade 6-7", [6, 7], True),
+    ("engaging camps for young learners entering grades K-8", list(range(0, 9)), True),
+    ("engaging camps for young learners entering grades K-8", list(range(1, 9)), True),
+    ("engaging camps for young learners entering grades K-8", [9], False),
+    ("entering grade 9 or 10", [9, 10], True),
+    ("entering grade 9 or 10", [9, 10, 11], False),
+    ("7th & 8th grade programs", [7, 8], True),
+    ("7th & 8th grade programs", [6, 7, 8], False),
+    ("grades 6 through 8", [6, 7, 8], True),
+])
+def test_grades_check_is_range_aware(quote, grades, ok):
+    from ingestion.verify import _grades_in_quote
+    assert _grades_in_quote(grades, quote) is ok
+
+
+CLUB = {"title": "Chess Club", "summary": "A club.", "category": "club", "grade_basis": "unknown", "grades_allowed": None,
+        "action_type": "apply", "action_url": None, "status": "open", "cost_usd": None, "opens_on": None, "deadline": None,
+        "starts_on": None, "tags": [], "requires": {}, "evidence": [ev("title", "Summer Research Institute (TEST ONLY)")]}
+
+
+def test_club_needs_only_a_title_quote_and_becomes_ask_school_ongoing():
+    v = run(CLUB)
+    assert v.state == "verified" and v.record["action_type"] == "ask_school" and v.record["status"] == "ongoing"
+    assert not codes(v, "review")
+
+
+def test_non_club_without_action_quote_still_needs_review():
+    v = run({**CLUB, "category": "program"})
+    assert v.state == "needs_review" and ("Q1", "no_quote_for_action_type") in codes(v)
+
+
+def test_club_still_rejected_without_a_title_quote():
+    assert run({**CLUB, "evidence": []}).state == "rejected"
+
+
+def test_meeting_time_is_not_a_date_text():
+    page = PAGE + "\nMeets Tuesdays 2:15-3:15."
+    v = run({**GOOD, "deadline": None, "date_text": "Tuesdays 2:15-3:15",
+             "evidence": [e for e in GOOD["evidence"] if e["field"] != "deadline"]}, page=page)
+    assert v.record["date_text"] is None and ("Q3", "date_text_not_a_date:nulled") in codes(v, "note")
+
+
+def test_grade_basis_may_be_supported_by_any_quote_on_the_record():
+    page = PAGE + "\nGrades 9-12.\nEntering students only."
+    base = {k: v for k, v in GOOD.items() if k != "evidence"}
+    ev_base = [e for e in GOOD["evidence"] if e["field"] != "grades_allowed"] + [ev("grades_allowed", "Grades 9-12.")]
+    # the grades quote alone has no 'entering' wording: needs review
+    assert run({**base, "evidence": ev_base}, page=page).state == "needs_review"
+    # another quote on the record supplies it: verified
+    assert run({**base, "evidence": ev_base + [ev("status", "Entering students only.")]}, page=page).state == "verified"
