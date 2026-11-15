@@ -33,7 +33,9 @@ def allowed_hosts(source: dict) -> list:
     """Official domains for a source: explicit allow_hosts, else the registrable tail of its URL host."""
     if source.get("allow_hosts"):
         return list(source["allow_hosts"])
-    return [".".join((urlparse(source["url"]).hostname or "").split(".")[-2:])]
+    host = (urlparse(source["url"]).hostname or "").split(".")
+    # ny.us and k12.ny.us are public suffixes: a school district's domain is one label further left
+    return [".".join(host[-4:] if ".".join(host[-3:]) == "k12.ny.us" else host[-2:])]
 
 
 def host_ok(url: str, hosts: list) -> bool:

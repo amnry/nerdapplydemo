@@ -59,7 +59,7 @@ def test_overrides_approve_edit_reject_and_report_unmatched():
     out, unmatched = apply_overrides(rows, ovs)
     assert a["verification_state"] == "verified" and "approve by r" in a["review_note"]
     assert b["cost_usd"] == 0 and b["extraction_method"] == "manual"
-    assert c["dedupe_key"] not in out and unmatched == ["nope|nope|none"]
+    assert c["verification_state"] == "rejected" and "reject by r" in c["review_note"] and unmatched == ["nope|nope|none"]
 
 
 def test_database_returning_150_for_150_point_0_is_not_a_change():

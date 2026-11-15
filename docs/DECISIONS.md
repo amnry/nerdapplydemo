@@ -75,3 +75,13 @@ Running log of choices the plan left open. Each entry: decision, then reason.
 - **Pipeline side:** `check_scopes` runs at the start of every run and stops it if a district `scope_value` is not a `district_slug`, or a school/institution `scope_value` is not a school slug. `normalize_districts` rewrites `requires.districts` names from a page to district slugs; a name that matches no known district keeps its own slug form, so that row is hidden for our schools (a missed opportunity, never a wrong one). Known limit: a page that abbreviates a district in a way we have no alias for (for example just "Three Village") will not map; add an alias when it shows up in the QA report.
 - **Guard:** `--publish` now exits with an error unless `--school <slug>` or `--all` is given (a lone `--source` is refused too). Dry runs are unaffected.
 - **`sources.yaml`** with the Hofstra and Garden City entries is committed. The 17 Hofstra rows published by mistake stay, by the presenter's decision.
+
+## Gate 3 dry runs and Stony Brook overrides (Nov 15)
+
+- **Stony Brook re-published** with 8 overrides: three EOP rows get `requires.admit_program=EOP`; the two verified URECA rows get `requires.enrollment=current`; Creative Writing Supplemental rejected; Honors summary rewritten. Result: 1 inserted, 22 updated, 0 unchanged. The `edit` override marks a row `extraction_method=manual`.
+- **Override reject now writes `verification_state=rejected`** (it used to drop the row from the batch, which would have left an already-published row verified in the database). Guides read verified rows only, so a rejected row is hidden and still auditable.
+- **`requires` cleanup:** empty and null keys are dropped (`districts: []` meant "no restriction" to the model but "unextractable list" to `match.ts`, which would have sent every middle-school row to Confirm first). This is why all 22 Stony Brook rows updated.
+- **Domain default fix:** for `*.k12.ny.us` hosts the allowed domain collapsed to `ny.us`; it is now the district domain (`gardencity.k12.ny.us`). Test added.
+- **Page cap default is 40.** Shared sources (the two DNA Learning Center pages) list both middle schools in `school: [...]`.
+- **Gate 3 sources added (dry runs only, nothing published):** Garden City: library Tweens N Teens page, 6 district/GCMS pages found by following links, 3 Adelphi and 3 Hofstra youth pages. Gelinas: Emma Clark teen site, 3 Stony Brook pre-college pages, the SCCC K-12 page, the Brookhaven education page. Skipped from the link crawl: registration and pre-K pages, and Drive/Canva/PDF files (the GCHS course catalog is a Drive file).
+- **Dry-run LLM spend:** Garden City $0.3550 (63,230 in / 22,848 out), Gelinas about $0.2510 (24,322 in / 10,284 out). Total live spend about $0.86.

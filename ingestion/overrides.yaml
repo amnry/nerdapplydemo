@@ -9,3 +9,45 @@ overrides:
     reviewer: presenter
     date: 2026-11-15
     note: "Duplicate of the Tuition Deposit record: same deposit, offered in person at Admitted Seawolf Day."
+
+  - key: "stony-brook-university|accept-your-offer-of-admission-in-the-startsbu-portal|none"
+    action: edit
+    reviewer: presenter
+    date: 2026-11-15
+    note: "Page is for EOP admits only."
+    fields: {requires: {admit_program: EOP}}
+  - key: "stony-brook-university|complete-the-housing-intent-form|none"
+    action: edit
+    reviewer: presenter
+    date: 2026-11-15
+    note: "Page is for EOP admits only."
+    fields: {requires: {admit_program: EOP}}
+  - key: "stony-brook-university|eop-aim-pre-freshman-summer-academy|summer-2027"
+    action: edit
+    reviewer: presenter
+    date: 2026-11-15
+    note: "Page is for EOP admits only."
+    fields: {requires: {admit_program: EOP}}
+  - key: "stony-brook-university|register-for-supervised-research-or-creative-project-credit|none"
+    action: edit
+    reviewer: presenter
+    date: 2026-11-15
+    note: "Research programs are for enrolled students."
+    fields: {requires: {enrollment: current}}
+  - key: "stony-brook-university|jane-armando-jannelli-ureca-award|none"
+    action: edit
+    reviewer: presenter
+    date: 2026-11-15
+    note: "Research programs are for enrolled students."
+    fields: {requires: {enrollment: current}}
+  - key: "stony-brook-university|creative-writing-supplemental|none"
+    action: reject
+    reviewer: presenter
+    date: 2026-11-15
+    note: "Supplement for applicants to the major; not an admitted-student task."
+  - key: "stony-brook-university|honors-programs-application-honors-college-wise-university-scholars-scholars-for-medicine-scholars-for-dental-medicine-yardi-scholars|fall-2027"
+    action: edit
+    reviewer: presenter
+    date: 2026-11-15
+    note: "Summary rewritten by presenter."
+    fields: {summary: "Honors College, WISE and University Scholars use an interest form in the StartSBU portal."}

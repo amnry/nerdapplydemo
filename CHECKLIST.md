@@ -11,6 +11,7 @@ Source: `plan.md` section 12. Tick a box only when its gate actually runs and pa
   - Status: pipeline, 33 offline tests and a live Stony Brook dry run (17 verified, 6 needs_review, 0 rejected, 3 dropped) are done. NOT ticked: waiting on school coordinates, and the 4 schools are not seeded. See `docs/DECISIONS.md`.
 - [ ] **3. All schools.** Add sources for the other 3 schools. Run `--publish` twice.
   - Gate: 30+ verified rows, second run changes nothing, QA report generated.
+  - Status: sources added and dry-run for both middle schools; nothing published for them. NOT ticked: see the dry-run findings in `docs/DECISIONS.md` (Gelinas has no school or district rows; Garden City's school clubs are in needs_review).
 - [ ] **4. Matching.** `match.ts` + golden tests.
   - Gate: all 8 cases pass against real rows.
 - [ ] **5. Guide.** Guide page + print CSS.

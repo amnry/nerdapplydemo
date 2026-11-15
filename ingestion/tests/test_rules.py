@@ -6,7 +6,7 @@ import yaml
 from ingestion.extract import apply_pre_admission, normalize_districts
 from ingestion.models import ROOT
 from ingestion.publish import build_row, check_scopes, load_schools
-from ingestion.run import run
+from ingestion.run import run, schools_of
 from .test_idempotency import SOURCE
 from .test_verify import GOOD
 
@@ -64,3 +64,19 @@ def test_bare_publish_is_refused_before_anything_runs():
     assert exc.value.code == 2
     with pytest.raises(SystemExit):
         run(["--publish", "--source", "sbu-eop"])  # a single source still needs --school or --all
+
+
+def test_empty_and_null_requires_keys_are_dropped_so_matching_does_not_see_a_restriction():
+    recs = [{"requires": {"districts": [], "enrollment": None, "admit_program": "", "note": "x"}}]
+    assert normalize_districts(recs, SCHOOLS)[0]["requires"] == {"note": "x"}
+
+
+def test_shared_source_lists_several_schools():
+    assert schools_of({"school": "a"}) == ["a"] and schools_of({"school": ["a", "b"]}) == ["a", "b"]
+
+
+def test_k12_ny_us_district_domains_are_not_collapsed_to_ny_us():
+    from ingestion.fetch import allowed_hosts, host_ok
+    hosts = allowed_hosts({"url": "https://www.gardencity.k12.ny.us/scope"})
+    assert hosts == ["gardencity.k12.ny.us"] and not host_ok("https://other.k12.ny.us/", hosts)
+    assert allowed_hosts({"url": "https://www.stonybrook.edu/x"}) == ["stonybrook.edu"]

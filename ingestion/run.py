@@ -16,6 +16,11 @@ from .verify import verify
 MANUAL_META = ("source", "entered_by", "entered_on")
 
 
+def schools_of(src: dict) -> list:
+    """A shared source (for example a regional camp page) lists several schools; others list one."""
+    return src["school"] if isinstance(src["school"], list) else [src["school"]]
+
+
 def run(argv=None) -> dict:
     ap = argparse.ArgumentParser(prog="python -m ingestion.run")
     ap.add_argument("--publish", action="store_true", help="write to Supabase (default is a dry run)")
@@ -24,7 +29,7 @@ def run(argv=None) -> dict:
     ap.add_argument("--source", help="only this source id")
     ap.add_argument("--all", action="store_true", help="with --publish: confirm you mean every source in sources.yaml")
     ap.add_argument("--school", action="append", help="only sources for this school slug (repeatable)")
-    ap.add_argument("--max-pages", type=int, default=15, help="cap on pages fetched this run")
+    ap.add_argument("--max-pages", type=int, default=40, help="cap on pages fetched this run")
     args = ap.parse_args(argv)
     if args.publish and not (args.school or args.all):
         ap.error("--publish needs --school <slug> (repeatable) or --all; a bare --publish would publish every source")
@@ -40,11 +45,11 @@ def run(argv=None) -> dict:
     if problems:  # an inconsistent scope would publish rows no school can ever match
         raise SystemExit("scope check failed:\n  " + "\n  ".join(problems))
     sources = [s for s in all_sources if (not args.source or s["id"] == args.source)
-               and (not args.school or s["school"] in args.school)]
+               and (not args.school or any(sc in args.school for sc in schools_of(s)))]
     stats = {"started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
              "mode": "publish" if args.publish else "dry-run", "sources_attempted": 0, "sources_ok": 0,
              "extracted": 0, "verified": 0, "needs_review": 0, "rejected": 0, "manual": 0, "tokens_in": 0,
-             "tokens_out": 0, "rejections_by_code": {}, "per_source": [], "rejections": [], "dropped_pre_admission": []}
+             "tokens_out": 0, "rejections_by_code": {}, "per_source": [], "rejections": [], "dropped_pre_admission": [], "records": []}
     rows: dict = {}
     pages: dict = {}   # source id -> (text, final_url) for pages fetched this run
     seen: dict = {}    # page hash -> first source id that reached it
@@ -59,6 +64,8 @@ def run(argv=None) -> dict:
             return
         stats["verified" if v.state == "verified" else "needs_review"] += 1
         stats["manual"] += method == "manual"
+        stats["records"].append({"source": src["id"], "scope": f"{src['scope_type']}:{src['scope_value']}", "state": v.state, "rec": v.record,
+                                 "review": [f"{r.code} {r.detail}" for r in v.reasons if r.level == "review"]})
         row = build_row(v.record, src, v.state, method, note)
         rows[row["dedupe_key"]] = row
 
@@ -66,7 +73,7 @@ def run(argv=None) -> dict:
     with new_client() as client:
         for src in sources:
             stats["sources_attempted"] += 1
-            entry = {"id": src["id"], "school": src["school"], "result": "ok", "tokens_est": 0, "note": ""}
+            entry = {"id": src["id"], "school": ", ".join(schools_of(src)), "result": "ok", "tokens_est": 0, "note": ""}
             stats["per_source"].append(entry)
             if src.get("blocked_by_robots"):  # flagged by a human; confirm with one robots.txt request, never fetch the page
                 still = not robots_ok(client, src["url"])
@@ -107,9 +114,8 @@ def run(argv=None) -> dict:
             text, final_url = pages.get(m["source"], (None, None))
             handle({k: v for k, v in m.items() if k not in MANUAL_META}, by_id[m["source"]], text, final_url, client,
                    "manual", f"manual entry by {m['entered_by']} on {m['entered_on']}")
-    before = set(rows)
     rows, stats["unmatched_overrides"] = apply_overrides(rows, load_overrides())
-    stats["rejected_by_override"] = sorted(before - set(rows))
+    stats["rejected_by_override"] = sorted(k for k, r in rows.items() if r["verification_state"] == "rejected")
     if args.publish:
         store = SupabaseStore(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
         store.upsert("sources", [{"slug": s["id"], **{k: s[k] for k in ("url", "owner", "stage", "scope_type", "scope_value", "lat", "lon")}}

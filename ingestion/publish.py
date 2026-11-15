@@ -60,8 +60,8 @@ def apply_overrides(rows: dict, overrides: list) -> tuple:
             unmatched.append(ov["key"])
             continue
         note = f"{ov['action']} by {ov['reviewer']} on {ov['date']}: {ov.get('note', '')}".strip()
-        if ov["action"] == "reject":
-            del rows[ov["key"]]
+        if ov["action"] == "reject":  # kept as a rejected row so a row already in the database is demoted, never left verified
+            row["verification_state"], row["review_note"] = "rejected", note
             continue
         row.update(ov.get("fields") or {})
         row["verification_state"] = "verified"

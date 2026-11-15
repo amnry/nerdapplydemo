@@ -115,7 +115,7 @@ def normalize_districts(records: list, schools: list) -> list:
             known[re.sub(r"[^a-z0-9]+", "-", (sc.get("district") or "").lower()).strip("-")] = sc["district_slug"]
     out = []
     for rec in records:
-        req = dict(rec.get("requires") or {})
+        req = {k: v for k, v in (rec.get("requires") or {}).items() if v not in (None, [], "")}  # empty list means "no restriction", not "unknown"
         if req.get("districts"):
             slugs = [known.get(re.sub(r"[^a-z0-9]+", "-", d.lower()).strip("-"), re.sub(r"[^a-z0-9]+", "-", d.lower()).strip("-")) for d in req["districts"]]
             req["districts"] = list(dict.fromkeys(slugs))
